@@ -22,7 +22,10 @@ class HTTPAsyncClient(asynchat.async_chat):
     """
 
     HTTP_COMMAND = "GET %s HTTP/1.1\r\nHost: %s\r\n\r\n"
-    CONNECTION = re.compile("^Connection:.*$", re.MULTILINE)
+    PATTERN_CONNECTION_CLOSE = re.compile("^Connection:.*$", re.MULTILINE)
+    PATTERN_TRANSFER_ENCODING = re.compile(
+                "^Transfer-Encoding:[ ]*chunked\r$", re.MULTILINE)
+    PATTERN_CONTENT_LENGTH = re.compile("^Content-Length:.*$", re.MULTILINE)
 
     def __init__(self, host, paths, port=80, map=None, loglevel=10):
         """
@@ -44,9 +47,6 @@ class HTTPAsyncClient(asynchat.async_chat):
         self._host = host
         self._paths = paths
         self._port = port
-        self._path = ""
-        self._data = ""
-        self._header = ""
 
         self.set_terminator("\r\n\r\n")
 
@@ -71,6 +71,13 @@ class HTTPAsyncClient(asynchat.async_chat):
     def next_path(self):
         """Push next request to host."""
         self._path = ""
+        self._header = ""
+        self._data = ""
+        self._status = ""
+        self._encoding = ""
+        if self.get_terminator() is None:
+            self.set_terminator("\r\n\r\n")
+            self._log.debug("Set terminator back to '(CRLF)(CRLF)'.")
         try:
             self._path = self._paths.popleft()
             request = self.HTTP_COMMAND % (self._path, self._host)
@@ -95,22 +102,40 @@ class HTTPAsyncClient(asynchat.async_chat):
     def collect_incoming_data(self, data):
         """Receive a chunk of incoming data."""
         self._data += data
+        if self.get_terminator() is None:
+            self.found_terminator()
 
     def found_terminator(self):
         """Handle a found terminator."""
         if not self._header:
             self._header = self._data
-            m = self.CONNECTION.search(self._header)
-            con = ""
-            if m is not None:
-                con = ", %s" % m.group(0)
-            self._log.debug("Header received (Status: %s%s)" %
-                    (self.get_status(self._header), con))
+            self._data = ""
+            print self._header
+            self._status = self.get_status(self._header)
+            self._connection = self.search_pattern(
+                    self.PATTERN_CONNECTION_CLOSE, self._header, prefix=", ")
+            self._encoding = self.search_pattern(
+                    self.PATTERN_TRANSFER_ENCODING, self._header, prefix=", ")
+            self._content_length = self.search_pattern(
+                    self.PATTERN_CONTENT_LENGTH, self._header, prefix=", ")
+            self._log.debug("Header received (Status: %s%s%s%s)" %
+                    (self._status, self._connection, self._encoding,
+                    self._content_length))
+
+            if not self._encoding:
+                self.set_terminator(None)
+                self._log.debug("No chunked encoding found. "
+                    "Set terminator to 'None'.")
+
+            try:
+                if self._content_length.split(" ")[1] == "0":
+                    self.found_terminator()
+            except:
+                pass
         else:
             self.process_response(self._header, self._data)
             self._header = ""
             self.next_path()
-        self._data = ""
 
     def process_response(self, header, chunk):
         """Process a response header and received chunk."""
@@ -129,4 +154,16 @@ class HTTPAsyncClient(asynchat.async_chat):
     @staticmethod
     def get_body(chunk):
         """Split chunk and return HTML body."""
-        return chunk.split("\r\n")[1]
+        try:
+            return chunk.split("\r\n")[1]
+        except IndexError:
+            return chunk
+
+    @staticmethod
+    def search_pattern(pattern, string, prefix="", suffix=""):
+        """Search for pattern in string"""
+        result = ""
+        m = pattern.search(string)
+        if m is not None:
+            result = "".join([prefix, m.group(0).strip(), suffix])
+        return result
