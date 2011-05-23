@@ -23,10 +23,12 @@ class HTTPAsyncClient(asynchat.async_chat):
     """
 
     HTTP_COMMAND = "GET %s HTTP/1.1\r\nHost: %s\r\n\r\n"
-    PATTERN_CONNECTION_CLOSE = re.compile("^Connection:.*$", re.MULTILINE)
+    PATTERN_CONNECTION_CLOSE = re.compile(
+            "^Connection:[ ]*(\w+).*$", re.MULTILINE)
     PATTERN_TRANSFER_ENCODING = re.compile(
-                "^Transfer-Encoding:[ ]*chunked\r$", re.MULTILINE)
-    PATTERN_CONTENT_LENGTH = re.compile("^Content-Length:.*$", re.MULTILINE)
+            "^Transfer-Encoding:[ ]*(\w+).*$", re.MULTILINE)
+    PATTERN_CONTENT_LENGTH = re.compile(
+            r'^Content-Length:[ ]*([0-9]+).*$', re.MULTILINE)
 
     def __init__(self, host, paths, port=80, channels=None, loglevel=10):
         """
@@ -52,24 +54,30 @@ class HTTPAsyncClient(asynchat.async_chat):
 
         self.set_terminator("\r\n\r\n")
 
-        # TODO: handle socket errors (e.g. connection refused)
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connect((self._host, self._port))
 
+        # TODO: improve logging
         formatter = logging.Formatter(
                 "%%(asctime)s %%(levelname)s: %%(threadName)s FD:%(fileno)3d "
                 "%%(message)s" % {"fileno": self.fileno()},
                 "%d.%m.%Y %H:%M:%S")
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(formatter)
+        self._handler = logging.StreamHandler(sys.stdout)
+        self._handler.setFormatter(formatter)
 
         self._log = logging.getLogger(__name__ + "_FD%d" % self.fileno())
-        self._log.addHandler(handler)
+        self._log.addHandler(self._handler)
         self._log.setLevel(loglevel)
         self._log.debug("HTTPAsyncClient connected to %s:%d" %
                 (self._host, self._port))
 
         self.next_path()
+
+    def clean_up(self):
+        """Remove and close logging handler"""
+        self._log.removeHandler(self._handler)
+        self._handler.close()
+        self.close()
 
     def next_path(self):
         """Push next request to host."""
@@ -88,7 +96,7 @@ class HTTPAsyncClient(asynchat.async_chat):
             self._log.debug("Send request: %s" %
                     request.replace("\r\n", "(CRLF)"))
         except IndexError:
-            self.close()
+            self.clean_up()
 
     def handle_connect(self):
         """Handle a successful connection."""
@@ -96,11 +104,11 @@ class HTTPAsyncClient(asynchat.async_chat):
 
     def handle_close(self):
         """Handle connection close."""
-        self.close()
+        self.clean_up()
 
-    def handle_expt(self):
-        """Handle exception."""
-        self.close()
+    def handle_error(self):
+        """Handle connection error."""
+        self.clean_up()
 
     def collect_incoming_data(self, data):
         """Receive a chunk of incoming data."""
@@ -125,13 +133,15 @@ class HTTPAsyncClient(asynchat.async_chat):
                     self._content_length))
 
             try:
-                if self._content_length.split(" ")[2] == "0":
+                if self.search_pattern(self.PATTERN_CONTENT_LENGTH,
+                        self._header, group=1) == "0":
                     self.found_terminator()
                     return
             except:
                 pass
 
-            if not self._encoding:
+            if self.search_pattern(self.PATTERN_TRANSFER_ENCODING,
+                    self._header, group=1) != "chunked":
                 self.set_terminator(None)
                 self._log.debug("No chunked encoding found. "
                     "Set terminator to 'None'.")
@@ -140,7 +150,7 @@ class HTTPAsyncClient(asynchat.async_chat):
             self._header = ""
             self._path = ""
             if self._connection:
-                self.close()
+                self.clean_up()
             else:
                 self.next_path()
 
@@ -167,12 +177,12 @@ class HTTPAsyncClient(asynchat.async_chat):
             return chunk
 
     @staticmethod
-    def search_pattern(pattern, string, prefix="", suffix=""):
+    def search_pattern(pattern, string, group=0, prefix="", suffix=""):
         """Search for pattern in string"""
         result = ""
         m = pattern.search(string)
         if m is not None:
-            result = "".join([prefix, m.group(0).strip(), suffix])
+            result = "".join([prefix, m.group(group).strip(), suffix])
         return result
 
 
@@ -212,49 +222,54 @@ class HTTPCrawler(threading.Thread):
         formatter = logging.Formatter(
                 "%(asctime)s %(levelname)s: %(threadName)s %(message)s",
                 "%d.%m.%Y %H:%M:%S")
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(formatter)
+        self._handler = logging.StreamHandler(sys.stdout)
+        self._handler.setFormatter(formatter)
 
         self._log = logging.getLogger(__name__ + "_%s" % str(self))
-        self._log.addHandler(handler)
+        self._log.addHandler(self._handler)
         self._log.setLevel(loglevel)
         self._log.debug("HTTPCrawler created for %s:%d with %d clients" %
                 (self._host, self._port, self._async))
 
     def run(self):
         """Run the HTTPCrawler thread."""
+
+        # Test connection
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((self._host, self._port))
+        except socket.error, e:
+            self._log.error("Unable to connect to %s:%d (%s)" %
+                    (self._host, self._port, e))
+            return
+        finally:
+            s.close()
+
         while not self._terminate and self._paths:
             self._channels.clear()
             self._clients[:]
             self._clients = [HTTPAsyncClient(self._host, self._paths,
-                self._port, self._channels, self._loglevel) 
+                self._port, self._channels, self._loglevel)
                 for i in xrange(0, self._async)]
 
             # start asynchronous requests
-            asyncore.loop(map = self._channels)
+            asyncore.loop(map=self._channels)
 
             # find abortet request paths
             for client in self._clients:
                 if client.unfinished_path():
                     self._paths.append(client.unfinished_path())
+        self.clean_up()
+
+    def clean_up(self):
+        """Remove and close logging handler"""
+        self._log.removeHandler(self._handler)
+        self._handler.close()
 
     def terminate(self):
         """Terminate the crawler and his clients."""
-        self._log.debug("Terminate crawler")
+        self._log.debug("Terminate crawler %s" % self)
         self._terminate = True
         for client in self._clients:
             client.close()
-
-
-if __name__ == '__main__':
-    from collections import deque
-    paths = deque(["/wiki/index.php?title=Berlin",
-        "/wiki/index.php?title=Potsdam",
-        "/wiki/index.php?title=Brandenburg",
-        "/wiki/index.php?title=Cottbus"])
-    c = HTTPCrawler("localhost", paths, 8080, 4)
-    c2 = HTTPCrawler("localhost", deque(paths), 8080, 4)
-    c.start()
-    c2.start()
-    c.join()
-    c2.join()
+        self.clean_up()
