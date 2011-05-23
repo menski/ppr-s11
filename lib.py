@@ -10,6 +10,7 @@ import sys
 import socket
 import asyncore
 import asynchat
+import threading
 import logging
 import re
 
@@ -27,7 +28,7 @@ class HTTPAsyncClient(asynchat.async_chat):
                 "^Transfer-Encoding:[ ]*chunked\r$", re.MULTILINE)
     PATTERN_CONTENT_LENGTH = re.compile("^Content-Length:.*$", re.MULTILINE)
 
-    def __init__(self, host, paths, port=80, map=None, loglevel=10):
+    def __init__(self, host, paths, port=80, channels=None, loglevel=10):
         """
         HTTPAsyncClient is an asynchronous HTTP/1.1 client.
 
@@ -35,14 +36,15 @@ class HTTPAsyncClient(asynchat.async_chat):
         connections.
 
         Arguments:
-        - `host`     : host adress
+        - `host`     : host address
         - `paths`    : deque with paths to request
         - `port`     : port number
-        - `map`      : dict for asyncore.loop
+        - `channels` : dict for asyncore.loop
         - `loglevel` : numeric log level
+
         """
 
-        asynchat.async_chat.__init__(self, map=map)
+        asynchat.async_chat.__init__(self, map=channels)
 
         self._host = host
         self._paths = paths
@@ -50,6 +52,7 @@ class HTTPAsyncClient(asynchat.async_chat):
 
         self.set_terminator("\r\n\r\n")
 
+        # TODO: handle socket errors (e.g. connection refused)
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connect((self._host, self._port))
 
@@ -63,7 +66,7 @@ class HTTPAsyncClient(asynchat.async_chat):
         self._log = logging.getLogger(__name__ + "_FD%d" % self.fileno())
         self._log.addHandler(handler)
         self._log.setLevel(loglevel)
-        self._log.debug("HTTPAsyncClient connected to %s:%s" %
+        self._log.debug("HTTPAsyncClient connected to %s:%d" %
                 (self._host, self._port))
 
         self.next_path()
@@ -143,7 +146,7 @@ class HTTPAsyncClient(asynchat.async_chat):
 
     def process_response(self, header, chunk):
         """Process a response header and received chunk."""
-        self._log.debug("Received response (Status: %s, Length: %d)" %
+        self._log.debug("Response received (Status: %s, Length: %d)" %
                 (self.get_status(header), len(self.get_body(chunk))))
 
     def unfinished_path(self):
@@ -171,3 +174,87 @@ class HTTPAsyncClient(asynchat.async_chat):
         if m is not None:
             result = "".join([prefix, m.group(0).strip(), suffix])
         return result
+
+
+class HTTPCrawler(threading.Thread):
+    """
+    A HTTP crawler which uses asynchronous requests.
+    A given list of paths are request from a host by using instances
+    of the HTTPAsyncClient class.
+
+    """
+
+    def __init__(self, host, paths, port=80, async=4, loglevel=10):
+        """
+        HTTPCrawler is a HTTP/1.1 crawler, using HTTPAsyncClient.
+
+        The crawler requests a list of paths from a given host. To request
+        the paths from the host, instances of HTTPAsyncClient are used.
+
+        Arguments:
+        - `host`     : host address
+        - `paths`    : deque of paths to request
+        - `port`     : port number
+        - `async`    : number of asynchronous requests
+        - `loglevel` : numeric log level
+
+        """
+        threading.Thread.__init__(self)
+        self._host = host
+        self._paths = paths
+        self._port = port
+        self._async = async
+        self._loglevel = loglevel
+        self._clients = []
+        self._channels = dict()
+        self._terminate = False
+
+        formatter = logging.Formatter(
+                "%(asctime)s %(levelname)s: %(threadName)s %(message)s",
+                "%d.%m.%Y %H:%M:%S")
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(formatter)
+
+        self._log = logging.getLogger(__name__ + "_%s" % str(self))
+        self._log.addHandler(handler)
+        self._log.setLevel(loglevel)
+        self._log.debug("HTTPCrawler created for %s:%d with %d clients" %
+                (self._host, self._port, self._async))
+
+    def run(self):
+        """Run the HTTPCrawler thread."""
+        while not self._terminate and self._paths:
+            self._channels.clear()
+            self._clients[:]
+            self._clients = [HTTPAsyncClient(self._host, self._paths,
+                self._port, self._channels, self._loglevel) 
+                for i in xrange(0, self._async)]
+
+            # start asynchronous requests
+            asyncore.loop(map = self._channels)
+
+            # find abortet request paths
+            for client in self._clients:
+                if client.unfinished_path():
+                    self._paths.append(client.unfinished_path())
+
+    def terminate(self):
+        """Terminate the crawler and his clients."""
+        self._log.debug("Terminate crawler")
+        self._terminate = True
+        for client in self._clients:
+            client.close()
+
+
+if __name__ == '__main__':
+    from collections import deque
+    paths = deque(["/wiki/index.php?title=Berlin",
+        "/wiki/index.php?title=Potsdam",
+        "/wiki/index.php?title=Brandenburg",
+        "/wiki/index.php?title=Cottbus"])
+    c = HTTPCrawler("localhost", paths, 8080, 4)
+    c2 = HTTPCrawler("localhost", deque(paths), 8080, 4)
+    c.start()
+    c2.start()
+    c.join()
+    c2.join()
