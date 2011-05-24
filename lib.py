@@ -13,6 +13,7 @@ import asynchat
 import threading
 import logging
 import re
+import time
 
 
 class HTTPAsyncClient(asynchat.async_chat):
@@ -51,6 +52,7 @@ class HTTPAsyncClient(asynchat.async_chat):
         self._host = host
         self._paths = paths
         self._port = port
+        self._time = 0
 
         self.set_terminator("\r\n\r\n")
 
@@ -93,6 +95,7 @@ class HTTPAsyncClient(asynchat.async_chat):
             self._path = self._paths.popleft()
             request = self.HTTP_COMMAND % (self._path, self._host)
             self.push(request)
+            self._time = time.clock()
             self._log.debug("Send request: %s" %
                     request.replace("\r\n", "(CRLF)"))
         except IndexError:
@@ -146,6 +149,7 @@ class HTTPAsyncClient(asynchat.async_chat):
                 self._log.debug("No chunked encoding found. "
                     "Set terminator to 'None'.")
         else:
+            self._time = time.clock() - self._time
             self.process_response(self._header, self._data)
             self._header = ""
             self._path = ""
@@ -156,8 +160,10 @@ class HTTPAsyncClient(asynchat.async_chat):
 
     def process_response(self, header, chunk):
         """Process a response header and received chunk."""
-        self._log.debug("Response received (Status: %s, Length: %d)" %
-                (self.get_status(header), len(self.get_body(chunk))))
+        self._log.debug(
+                "Response received (Status: %s, Length: %d, Time: %f)" %
+                (self.get_status(header), len(self.get_body(chunk)),
+                self._time))
 
     def unfinished_path(self):
         """Return path if the request was aborted."""

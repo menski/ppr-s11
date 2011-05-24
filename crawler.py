@@ -67,7 +67,8 @@ class WikiClient(HTTPAsyncClient):
             error_count = 0
 
         result = "%s Errors: %2d" % (result, error_count)
-        self._log.info("%s %s %s" % (self._status, result, self._path))
+        self._log.info("%s %s %7.3f %s" % 
+                (self._status, result, self._time, self._path))
 
 
 class WikiCrawler(HTTPCrawler):
