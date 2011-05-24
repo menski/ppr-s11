@@ -95,7 +95,7 @@ class HTTPAsyncClient(asynchat.async_chat):
             self._path = self._paths.popleft()
             request = self.HTTP_COMMAND % (self._path, self._host)
             self.push(request)
-            self._time = time.clock()
+            self._time = time.time()
             self._log.debug("Send request: %s" %
                     request.replace("\r\n", "(CRLF)"))
         except IndexError:
@@ -149,7 +149,7 @@ class HTTPAsyncClient(asynchat.async_chat):
                 self._log.debug("No chunked encoding found. "
                     "Set terminator to 'None'.")
         else:
-            self._time = time.clock() - self._time
+            self._time = time.time() - self._time
             self.process_response(self._header, self._data)
             self._header = ""
             self._path = ""
