@@ -1,0 +1,20 @@
+Praktikum Paralleles Rechnen
+
+Aufgabenstellung: Aufrufen aller Wikipedia Artikel, damit alle Thumbnails
+generiert werden.
+
+Files:
+ - lib.py :     Enthält die wichtigesten Grundklassen, wie HTTPAsyncClient
+                einen HTTP/1.1 Client der persistente Verbindungen unterstützt.
+                Oder HTTPCrawler der HTTPAsyncClient Instanzen nutzt um, in
+                einem eigenen Thread, asynchrone HTTP Requests zu senden.
+
+ - crawler.py : Enthält die spezielen Wikipedia Instanzen von HTTPAsyncClient
+                und HTTPCrawler. Außerdem eine main()-Routine, welche mehere
+                Crawler konfiguriert und aufruft. Und so mit multithreading
+                nutzt.
+
+ - test.py    : Enthäl Testfunktionen für das py.test Framework.
+
+Aufruf:
+    Siehe 'crawler.py -h' füre weitere Informationen.
