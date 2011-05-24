@@ -17,7 +17,7 @@ Options:
     -t, --threads   : Number of threads (default: 4)
     -a, --async     : Number of asynchronous requests (default: 10)
     -l, --log       : Log level (default: DEBUG)
-    --help          : Print this message
+    --help          : Print this help message
 '''
 
 import getopt
