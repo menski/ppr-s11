@@ -164,7 +164,7 @@ def main():
     paths = deque(readpaths(pathfile, start, count))
 
     for i in xrange(0, threads):
-        thread = HTTPCrawler(host, paths, port, async)
+        thread = WikiCrawler(host, paths, port, async)
         thread.start()
         THREADS.append(thread)
 
