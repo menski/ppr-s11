@@ -14,7 +14,7 @@ Files:
                 Crawler konfiguriert und aufruft. Und so mit multithreading
                 nutzt.
 
- - test.py    : Enthäl Testfunktionen für das py.test Framework.
+ - test.py    : Enthält Testfunktionen für das py.test Framework.
 
 Aufruf:
     Siehe 'crawler.py -h' füre weitere Informationen.
