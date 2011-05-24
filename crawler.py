@@ -31,14 +31,13 @@ from math import ceil
 
 THREADS = []
 
-handler = logging.StreamHandler(sys.stdout)
-frm = logging.Formatter("%(asctime)s %(levelname)s: %(message)s",
-                              "%d.%m.%Y %H:%M:%S")
-handler.setFormatter(frm)
-
 log = logging.getLogger()
-log.addHandler(handler)
-log.setLevel(logging.DEBUG)
+if not log.handlers:
+    handler = logging.StreamHandler(sys.stdout)
+    frm = logging.Formatter("%(asctime)s %(levelname)s: %(threadName)s "
+        "%(message)s", "%d.%m.%Y %H:%M:%S")
+    handler.setFormatter(frm)
+    log.addHandler(handler)
 
 
 class WikiClient(HTTPAsyncClient):
@@ -160,6 +159,8 @@ def main():
             if loglevel is None:
                 print >> sys.stderr, "Log level is not valid"
                 sys.exit(2)
+
+    log.setLevel(loglevel)
 
     # get paths
     paths = deque(readpaths(pathfile, start, count))

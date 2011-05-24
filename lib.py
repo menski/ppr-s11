@@ -62,7 +62,7 @@ class HTTPAsyncClient(asynchat.async_chat):
         self._log = logging.getLogger()
         if not self._log.handlers:
             formatter = logging.Formatter(
-                "%(asctime)s %(levelname)s: %(threadName)s", 
+                "%(asctime)s %(levelname)s: %(threadName)s %(message)s", 
                 "%d.%m.%Y %H:%M:%S")
             self._handler = logging.StreamHandler(sys.stdout)
             self._handler.setFormatter(formatter)
