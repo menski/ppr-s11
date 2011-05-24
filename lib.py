@@ -259,7 +259,7 @@ class HTTPCrawler(threading.Thread):
             self._clients[:]
             self._clients = [self.create_client(self._host, self._paths,
                 self._port, self._channels, self._loglevel)
-                for i in xrange(0, self._async)]
+                for i in xrange(0, min(self._async, len(self._paths)))]
 
             # start asynchronous requests
             asyncore.loop(map=self._channels)
