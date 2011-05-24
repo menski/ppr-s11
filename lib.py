@@ -310,8 +310,6 @@ def fetchdb(host, user, passwd, db, table, columns, fun=None):
         cursor = conn.cursor()
         select = "SELECT %s FROM %s" % (", ".join(columns), table)
         cursor.execute(select)
-        cursor.close()
-        conn.close()
         for row in cursor.fetchall():
             if fun is not None:
                 fun(row)
@@ -319,3 +317,6 @@ def fetchdb(host, user, passwd, db, table, columns, fun=None):
                 print " ".join([str(i) for i in row])
     except mysql.Error, e:
         print e
+    finally:
+        cursor.close()
+        conn.close()
