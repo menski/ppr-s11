@@ -14,5 +14,9 @@ Files:
                 Crawler konfiguriert und aufruft. Und so mit multithreading
                 nutzt.
 
+ - fetcher.py : Enthält einen Datenbank fetcher für die Wikipedia MySQL
+                Datenbank um alle Artikel URL's zu generieren.
+
 Aufruf:
     Siehe 'crawler.py -h' füre weitere Informationen.
+    Siehe 'fetcher.py -h' füre weitere Informationen.
