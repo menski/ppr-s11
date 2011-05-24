@@ -192,7 +192,7 @@ def readpaths(pathfile, start=0, count=100):
 
 def terminate(signum, frame):
     """Handle signals"""
-    log.error("Caught signale")
+    log.debug("Caught signale")
     log.debug("Stop threads")
     for thread in THREADS:
         thread.terminate()
