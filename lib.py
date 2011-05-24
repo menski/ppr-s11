@@ -186,35 +186,6 @@ class HTTPAsyncClient(asynchat.async_chat):
         return result
 
 
-class WikiClient(HTTPAsyncClient):
-    """
-    A wikipedia instance of HTTPAsyncClient.
-
-    Special regex matching on response body.
-
-    """
-
-    PATTERN_SERVED = re.compile(
-            r'Served[ ]*by[ ]*(\w+)[ ]*in[ ]*([0-9]*\.[0-9]*)[ ]*secs')
-    PATTERN_ERROR = re.compile(r'MediaTransformError')
-
-    def process_response(self, header, chunk):
-        """Search for served by SERVER in SECONDS and errors."""
-        HTTPAsyncClient.process_response(self, header, chunk)
-        match = self.PATTERN_SERVED.search(chunk)
-        result = ""
-        if match is not None:
-            result = "%s %7.3f" % (match.group(1), float(match.group(2)))
-        errors = self.PATTERN_ERROR.findall(chunk)
-        if errors:
-            error_count = len(errors)
-        else:
-            error_count = 0
-
-        result = "%s Errors: %2d" % (result, error_count)
-        self._log.info("%s %s %s" % (self._status, result, self._path))
-
-
 class HTTPCrawler(threading.Thread):
     """
     A HTTP crawler which uses asynchronous requests.
@@ -260,6 +231,9 @@ class HTTPCrawler(threading.Thread):
         self._log.debug("HTTPCrawler created for %s:%d with %d clients" %
                 (self._host, self._port, self._async))
 
+    def create_client(self, host, paths, port, channels, loglevel):
+        return HTTPAsyncClient(host, paths, port, channels, loglevel)
+
     def run(self):
         """Run the HTTPCrawler thread."""
 
@@ -277,7 +251,7 @@ class HTTPCrawler(threading.Thread):
         while not self._terminate and self._paths:
             self._channels.clear()
             self._clients[:]
-            self._clients = [WikiClient(self._host, self._paths,
+            self._clients = [self._reate_client(self._host, self._paths,
                 self._port, self._channels, self._loglevel)
                 for i in xrange(0, self._async)]
 

@@ -24,20 +24,63 @@ import getopt
 import sys
 import signal
 import logging
-from lib import HTTPCrawler
+import re
+from lib import HTTPAsyncClient, HTTPCrawler
 from collections import deque
 
 
 THREADS = []
 
 handler = logging.StreamHandler(sys.stderr)
-frm = logging.Formatter("%(asctime)s %(levelname)s: %(message)s", 
-                              "%d.%m.%Y %H:%M:%S") 
+frm = logging.Formatter("%(asctime)s %(levelname)s: %(message)s",
+                              "%d.%m.%Y %H:%M:%S")
 handler.setFormatter(frm)
 
-log = logging.getLogger("crawler") 
-log.addHandler(handler) 
+log = logging.getLogger("crawler")
+log.addHandler(handler)
 log.setLevel(logging.DEBUG)
+
+
+class WikiClient(HTTPAsyncClient):
+    """
+    A wikipedia instance of HTTPAsyncClient.
+
+    Special regex matching on response body.
+
+    """
+
+    PATTERN_SERVED = re.compile(
+            r'Served[ ]*by[ ]*(\w+)[ ]*in[ ]*([0-9]*\.[0-9]*)[ ]*secs')
+    PATTERN_ERROR = re.compile(r'MediaTransformError')
+
+    def process_response(self, header, chunk):
+        """Search for served by SERVER in SECONDS and errors."""
+        HTTPAsyncClient.process_response(self, header, chunk)
+        match = self.PATTERN_SERVED.search(chunk)
+        result = ""
+        if match is not None:
+            result = "%s %7.3f" % (match.group(1), float(match.group(2)))
+        errors = self.PATTERN_ERROR.findall(chunk)
+        if errors:
+            error_count = len(errors)
+        else:
+            error_count = 0
+
+        result = "%s Errors: %2d" % (result, error_count)
+        self._log.info("%s %s %s" % (self._status, result, self._path))
+
+
+class WikiCrawler(HTTPCrawler):
+    """
+    A wikipedia instance of HTTPCrawler.
+
+    Uses instances of WikiClient as client.
+
+    """
+
+    def create_client(self, host, paths, port, channels, loglevel):
+        return WikiClient(host, paths, port, channels, loglevel)
+
 
 def main():
     """Start crawler with sys.args"""
@@ -120,7 +163,7 @@ def main():
     # get paths
     paths = deque(readpaths(pathfile, start, count))
 
-    for i in xrange(0,threads):
+    for i in xrange(0, threads):
         thread = HTTPCrawler(host, paths, port, async)
         thread.start()
         THREADS.append(thread)
@@ -144,6 +187,7 @@ def readpaths(pathfile, start=0, count=100):
     except IOError, e:
         log.error("Unable to read paths file (%s)" % e)
         sys.exit(1)
+
 
 def terminate(signum, frame):
     """Handle signals"""
