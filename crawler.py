@@ -27,7 +27,7 @@ import logging
 import re
 from lib import HTTPAsyncClient, HTTPCrawler
 from collections import deque
-
+from math import ceil
 
 THREADS = []
 
@@ -164,7 +164,13 @@ def main():
     # get paths
     paths = deque(readpaths(pathfile, start, count))
 
-    for i in xrange(0, threads):
+
+    min_threads = min(threads, int(ceil(len(paths) / float(async))))
+    if min_threads < threads:
+        log.debug("Needless threads requested. Thread number reduced to %d." %
+                min_threads)
+
+    for i in xrange(0, min_threads):
         thread = WikiCrawler(host, paths, port, async)
         thread.start()
         THREADS.append(thread)
