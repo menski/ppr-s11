@@ -13,7 +13,6 @@ import threading
 import logging
 import re
 import time
-import MySQLdb as mysql
 
 
 class HTTPAsyncClient(asynchat.async_chat):
@@ -288,35 +287,3 @@ class HTTPCrawler(threading.Thread):
         self._terminate = True
         for client in self._clients:
             client.close()
-
-
-def fetchdb(host, user, passwd, db, table, columns, fun=None):
-    """
-    Fetch all entries from a MySQL database table and process them.
-
-    Attributes:
-    - `host` : MySQL host name
-    - `user` : MySQL username
-    - `passwd` : MySQL password
-    - `db` : MySQL database
-    - `table` : MySQL table
-    - `columns` : table columns to fetch
-    - `fun` : function to process results
-
-    """
-
-    try:
-        conn = mysql.connect(host, user, passwd, db)
-        cursor = conn.cursor()
-        select = "SELECT %s FROM %s" % (", ".join(columns), table)
-        cursor.execute(select)
-        for row in cursor.fetchall():
-            if fun is not None:
-                fun(row)
-            else:
-                print " ".join([str(i) for i in row])
-    except mysql.Error, e:
-        print e
-    finally:
-        cursor.close()
-        conn.close()
