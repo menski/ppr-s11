@@ -251,7 +251,7 @@ class HTTPCrawler(threading.Thread):
         while not self._terminate and self._paths:
             self._channels.clear()
             self._clients[:]
-            self._clients = [self._reate_client(self._host, self._paths,
+            self._clients = [self.create_client(self._host, self._paths,
                 self._port, self._channels, self._loglevel)
                 for i in xrange(0, self._async)]
 
