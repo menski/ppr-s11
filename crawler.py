@@ -31,12 +31,12 @@ from collections import deque
 
 THREADS = []
 
-handler = logging.StreamHandler(sys.stderr)
+handler = logging.StreamHandler(sys.stdout)
 frm = logging.Formatter("%(asctime)s %(levelname)s: %(message)s",
                               "%d.%m.%Y %H:%M:%S")
 handler.setFormatter(frm)
 
-log = logging.getLogger("crawler")
+log = logging.getLogger()
 log.addHandler(handler)
 log.setLevel(logging.DEBUG)
 
