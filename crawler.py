@@ -66,7 +66,7 @@ class WikiClient(HTTPAsyncClient):
             error_count = 0
 
         result = "%s Errors: %2d" % (result, error_count)
-        self._log.info("%s %s %7.3f %s" % 
+        self._log.info("%s %s %7.3f %s" %
                 (self._status, result, self._time, self._path))
 
 
@@ -164,7 +164,6 @@ def main():
 
     # get paths
     paths = deque(readpaths(pathfile, start, count))
-
 
     min_threads = min(threads, int(ceil(len(paths) / float(async))))
     if min_threads < threads:

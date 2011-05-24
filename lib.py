@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''
 File: lib.py
 Author: Sebastian Menski
@@ -62,7 +61,7 @@ class HTTPAsyncClient(asynchat.async_chat):
         self._log = logging.getLogger()
         if not self._log.handlers:
             formatter = logging.Formatter(
-                "%(asctime)s %(levelname)s: %(threadName)s %(message)s", 
+                "%(asctime)s %(levelname)s: %(threadName)s %(message)s",
                 "%d.%m.%Y %H:%M:%S")
             self._handler = logging.StreamHandler(sys.stdout)
             self._handler.setFormatter(formatter)
@@ -108,6 +107,7 @@ class HTTPAsyncClient(asynchat.async_chat):
 
     def handle_error(self):
         """Handle connection error."""
+        self._log.error(self.get_log_msg("Connection error"))
         self.close()
 
     def collect_incoming_data(self, data):
@@ -129,7 +129,7 @@ class HTTPAsyncClient(asynchat.async_chat):
             self._content_length = self.search_pattern(
                     self.PATTERN_CONTENT_LENGTH, self._header, prefix=", ")
             self._log.debug(self.get_log_msg(
-                "Header received (Status: %s%s%s%s)" % (self._status, 
+                "Header received (Status: %s%s%s%s)" % (self._status,
                     self._connection, self._encoding, self._content_length)))
 
             try:
@@ -197,7 +197,7 @@ class HTTPCrawler(threading.Thread):
 
     """
 
-    def __init__(self, host, paths, port=80, async=4, loglevel=10):
+    def __init__(self, host, paths, port=80, async=4, loglevel=10, retry=7):
         """
         HTTPCrawler is a HTTP/1.1 crawler, using HTTPAsyncClient.
 
@@ -210,6 +210,7 @@ class HTTPCrawler(threading.Thread):
         - `port`     : port number
         - `async`    : number of asynchronous requests
         - `loglevel` : numeric log level
+        - `loglevel` : number of retrys
 
         """
         threading.Thread.__init__(self)
@@ -218,6 +219,7 @@ class HTTPCrawler(threading.Thread):
         self._port = port
         self._async = async
         self._loglevel = loglevel
+        self._retry = retry
         self._clients = []
         self._channels = dict()
         self._terminate = False
@@ -240,16 +242,29 @@ class HTTPCrawler(threading.Thread):
     def run(self):
         """Run the HTTPCrawler thread."""
 
-        # Test connection
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((self._host, self._port))
-        except socket.error, e:
-            self._log.error("Unable to connect to %s:%d (%s)" %
-                    (self._host, self._port, e))
-            return
-        finally:
-            s.close()
+        # Test connection (self._retry times)
+        while self._retry > 0:
+            self._retry -= 1
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.connect((self._host, self._port))
+            except socket.gaierror, e:
+                self._log.error("Unable to connect to %s:%d (%s)" %
+                        (self._host, self._port, e))
+                return
+            except socket.error, e:
+                self._log.error("Unable to connect to %s:%d (%s). "
+                        "Attempts left: %d" %
+                        (self._host, self._port, e, self._retry))
+                if self._retry < 1:
+                    return
+            except:
+                self._log.error("Unable to connect to %s:%d (%s)")
+                return
+            else:
+                break
+            finally:
+                s.close()
 
         while not self._terminate and self._paths:
             self._channels.clear()
