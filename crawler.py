@@ -17,7 +17,14 @@ Options:
     -t, --threads   : Number of threads (default: 4)
     -a, --async     : Number of asynchronous requests (default: 10)
     -l, --log       : Log level (default: DEBUG)
+    -d, --dump      : Dump received chunk data (see Dump)
     --help          : Print this help message
+
+Dump:
+    a, all          : Dump all received chunk data
+    e, error        : Dump only chunk data which contains errors
+    n, none         : Dump nothing (default)
+
 '''
 
 import getopt
@@ -28,6 +35,8 @@ import re
 from lib import HTTPAsyncClient, HTTPCrawler
 from collections import deque
 from math import ceil
+import tempfile
+
 
 THREADS = []
 
@@ -70,6 +79,29 @@ class WikiClient(HTTPAsyncClient):
                 (self._status, result, self._time, self._path))
 
 
+class DumpClient(WikiClient):
+    """A special instance, which dumps the body into the tmp directory."""
+
+    def process_response(self, header, chunk):
+        """Dump chunk into tmp directory."""
+        WikiClient.process_response(self, header, chunk)
+        tmp = tempfile.NamedTemporaryFile(prefix="wikicrawler_", delete=False)
+        tmp.write(chunk.split("\r\n")[1])
+        tmp.close()
+        self._log.debug("Chunk from %s dumped to %s" % (self._path, tmp.name))
+
+
+class DumpErrorClient(DumpClient):
+    """Dump data chunk only on existing errors."""
+
+    def process_response(self, header, chunk):
+        """Dump chunk into tmp directory if it contains errors."""
+        if WikiClient.PATTERN_ERROR.search(chunk):
+            DumpClient.process_response(self, header, chunk)
+        else:
+            WikiClient.process_response(self, header, chunk)
+
+
 class WikiCrawler(HTTPCrawler):
     """
     A wikipedia instance of HTTPCrawler.
@@ -78,16 +110,29 @@ class WikiCrawler(HTTPCrawler):
 
     """
 
+    def __init__(self, host, paths, port=80, async=4, loglevel=10, retry=7,
+            dump=None):
+        HTTPCrawler.__init__(self, host, paths, port, async, loglevel, retry)
+        self._dump = dump
+
     def create_client(self, host, paths, port, channels, loglevel):
-        return WikiClient(host, paths, port, channels, loglevel)
+        if self._dump is None:
+            return WikiClient(host, paths, port, channels, loglevel)
+        elif self._dump == "all":
+            return DumpClient(host, paths, port, channels, loglevel)
+        elif self._dump == "error":
+            return DumpErrorClient(host, paths, port, channels, loglevel)
+        else:
+            self._log.error("Unknown dump level")
+            sys.exit(1)
 
 
 def main():
     """Start crawler with sys.args"""
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "h:p:f:s:c:t:a:l:",
+        opts, args = getopt.getopt(sys.argv[1:], "h:p:f:s:c:t:a:l:d:",
                 ["host=", "port=", "file=", "start=", "count=",
-                    "threads=", "async=", "log=", "help"])
+                    "threads=", "async=", "log=", "dump=", "help"])
     except getopt.GetoptError, e:
         print >> sys.stderr, e
         print __doc__
@@ -102,6 +147,7 @@ def main():
     threads = 4
     async = 10
     loglevel = 10
+    dump = None
 
     # process options
     for o, a in opts:
@@ -159,6 +205,16 @@ def main():
             if loglevel is None:
                 print >> sys.stderr, "Log level is not valid"
                 sys.exit(2)
+        elif o in ("-d", "--dump"):
+            if a in ("n", "none"):
+                dump = None
+            elif a in ("e", "error"):
+                dump = "error"
+            elif a in ("a", "all"):
+                dump = "all"
+            else:
+                print >> sys.stderr, "Unknown dump level"
+                sys.exit(1)
 
     log.setLevel(loglevel)
 
@@ -171,7 +227,7 @@ def main():
                 min_threads)
 
     for i in xrange(0, min_threads):
-        thread = WikiCrawler(host, paths, port, async)
+        thread = WikiCrawler(host, paths, port, async, dump=dump)
         thread.start()
         THREADS.append(thread)
 
