@@ -12,6 +12,7 @@ Pakete:
     - wiki:     Enthält die spezielen Wikipedia Instanzen von HTTPAsyncClient
                 und HTTPCrawler.
 
+Dateien:
  - crawler.py : Enthält eine main()-Routine, welche mehere Crawler konfiguriert
                 und aufruft. Und so mit multithreading nutzt.
 
