@@ -119,6 +119,7 @@ class HTTPAsyncClient(asynchat.async_chat):
     def found_terminator(self):
         """Handle a found terminator."""
         if not self._header:
+            htime = time.time() - self._time
             self._header = self._data
             self._data = ""
             self._status = self.get_status(self._header)
@@ -129,8 +130,9 @@ class HTTPAsyncClient(asynchat.async_chat):
             self._content_length = self.search_pattern(
                     self.PATTERN_CONTENT_LENGTH, self._header, prefix=", ")
             self._log.debug(self.get_log_msg(
-                "Header received (Status: %s%s%s%s)" % (self._status,
-                    self._connection, self._encoding, self._content_length)))
+                "Header received (Status: %s%s%s%s, Time: %f)" %
+                (self._status, self._connection, self._encoding,
+                self._content_length, htime)))
 
             try:
                 if self.search_pattern(self.PATTERN_CONTENT_LENGTH,
