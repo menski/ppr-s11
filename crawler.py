@@ -32,7 +32,8 @@ import sys
 import signal
 import logging
 import re
-from lib import HTTPAsyncClient, HTTPCrawler
+from httpasync.HTTPAsyncClient import HTTPAsyncClient
+from httpasync.HTTPCrawler import HTTPCrawler
 from collections import deque
 from math import ceil
 import tempfile
