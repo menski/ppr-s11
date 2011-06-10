@@ -6,6 +6,10 @@ Description: Collection of classes and functions to analyze webserver traces.
 '''
 
 import subprocess
+import re
+import time
+import os.path
+from operator import itemgetter
 
 
 def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
@@ -23,12 +27,19 @@ def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
         # set output
         stdin.write('set terminal postscript color enhanced\n')
         stdin.write('set output "%s.eps"\n' % filename)
+        #stdin.write('set terminal png size 1984, 1488\n')
+        #stdin.write('set output "%s.png"\n' % filename)
+        #stdin.write('set terminal svg\n')
+        #stdin.write('set output "%s.svg"\n' % filename)
 
         # set axis labels
         if xlabel is not None:
             stdin.write('set xlabel "%s"\n' % xlabel)
         if ylabel is not None:
-            stdin.write('set ylabel "%s"\n' % xlabel)
+            stdin.write('set ylabel "%s"\n' % ylabel)
+
+        # set xtics
+        #stdin.write('set xtics 5\n')
 
         # set grid
         stdin.write('set grid y\n')
@@ -68,14 +79,21 @@ def readfile(filename, process, openfunc=open):
 
 
 class TraceAnalyzer(object):
-    """Analyze a trace and print some statitics"""
+    """Analyze a trace and output.write(some statitics"""
 
-    def __init__(self, tracefile, openfunc=open, gnuplot=False):
+    def __init__(self, tracefile, openfunc=open, plot=False):
         self._tracefile = tracefile
         self._openfunc = openfunc
         self._gnuplot = gnuplot
+        self.init()
         self.read(tracefile, self.analyze, openfunc)
         self.stats()
+        if plot:
+            self.plot()
+
+    def init(self):
+        """Initialize the analyzier."""
+        pass
 
     def read(self, tracefile, process, openfunc=open):
         """Read tracefile and analyze every line."""
@@ -86,5 +104,131 @@ class TraceAnalyzer(object):
         pass
 
     def stats(self):
-        """Print statistics."""
+        """Write statistics."""
         pass
+
+    def plot(self):
+        """Plot statistics."""
+        pass
+
+
+class WikiAnalyzer(TraceAnalyzer):
+    """Analyze a wiki trace from wikibench.eu"""
+
+    HOST = re.compile(r'http://(([\w-]+\.)*\w+)/')
+    UPLOAD = re.compile(r'http://upload.wikimedia.org/([\w\.]+/?)?')
+    WIKIUPLOAD = re.compile(r'http://upload.wikimedia.org/wikipedia/(\w*)/')
+
+    def init(self):
+        """Initialize the analyzer."""
+        self._lines = 0
+        self._requests = 0
+        self._errors = []
+        self._starttime = time.time()
+        self._endtime = 0
+        self._hosts = dict()
+        self._uploads = dict()
+        self._methods = dict()
+        self._rps = dict()
+
+    def inc_dict(self, dictonary, key):
+        """Create or increment a value in an dictonary"""
+        if key in dictonary:
+            dictonary[key] += 1
+        else:
+            dictonary[key] = 1
+
+    def print_dict(self, dictonary, output):
+        sformat = "%30s: %8d\n"
+        sum = 0
+        uniq = 0
+        for key, value in sorted(dictonary.items(), key=itemgetter(1),
+            reverse=True):
+            sum += value
+            uniq += 1
+            output.write(sformat % (key, value))
+        output.write("%40s\n" % "----------")
+        output.write(sformat % ("sum", sum))
+        output.write(sformat % ("uniq", uniq))
+
+    def analyze(self, line):
+        """Analyze a trace line."""
+        self._lines += 1
+
+        # split line
+        (nr, timestamp, url, method) = line.split(" ")
+        timestamp = float(timestamp)
+
+        # test timestamp
+        if timestamp < self._starttime:
+            self._starttime = timestamp
+        if timestamp > self._endtime:
+            self._endtime = timestamp
+
+        # parse host
+        m = WikiAnalyzer.HOST.match(url)
+        if m:
+            self._requests += 1
+            self.inc_dict(self._hosts, m.group(1))
+
+            # test if it is an upload
+            m = WikiAnalyzer.UPLOAD.match(url)
+            if m:
+                upload = m.group(1)
+                if upload is None:
+                    upload = ""
+                if upload.lower() == "wikipedia":
+                    lang = WikiAnalyzer.WIKIUPLOAD.match(url)
+                    if lang:
+                        upload = "/".join(
+                                [upload.lower(), lang.group(1).lower()])
+                self.inc_dict(self._uploads, upload)
+
+            # increase method counter
+            self.inc_dict(self._methods, method)
+
+            # increase request per seconds counter
+            self.inc_dict(self._rps, str(int(timestamp)))
+
+        else:
+            self._errors.append(line)
+
+    def stats(self):
+        """Write statistics."""
+        with open(self._tracefile + ".stats", "wb") as output:
+            sformat = "%30s: %s\n"
+            output.write("[GENERAL]\n")
+            output.write(sformat % ("tracefile", self._tracefile))
+            output.write(sformat % ("start time",
+                time.strftime("%a, %d %b %Y %H:%M:%S +0000",
+                time.gmtime(self._starttime))))
+            output.write(sformat % ("end time",
+                time.strftime("%a, %d %b %Y %H:%M:%S +0000",
+                time.gmtime(self._endtime))))
+            output.write("%30s: %.3f sec\n" % ("duration",
+                self._endtime - self._starttime))
+            output.write(sformat % ("lines", str(self._lines)))
+            output.write(sformat % ("requests", str(self._requests)))
+            output.write(sformat % ("errors", str(len(self._errors))))
+
+            output.write("\n[HOSTS]\n")
+            self.print_dict(self._hosts, output)
+
+            output.write("\n[UPLOADS]\n")
+            self.print_dict(self._uploads, output)
+
+            output.write("\n[METHODS]\n")
+            self.print_dict(self._methods, output)
+
+            output.write("\n[ERRORS]\n")
+            for error in self._errors:
+                output.write(error + "\n")
+
+    def plot(self):
+        """Plot statistics."""
+        data = ["%d %d" % (int(second) - int(self._starttime), count)
+                for second, count in sorted(self._rps.items())]
+        title = os.path.splitext(os.path.basename(self._tracefile))[0]
+        gnuplot(title=title, data=data, filename=self._tracefile,
+                ylabel="requests", xlabel="second", using="1:2",
+                style="impulses")
