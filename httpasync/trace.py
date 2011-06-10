@@ -65,3 +65,26 @@ def readfile(filename, process, openfunc=open):
     with openfunc(filename, mode="rb") as file:
         for line in file:
             process(line.strip())
+
+
+class TraceAnalyzer(object):
+    """Analyze a trace and print some statitics"""
+
+    def __init__(self, tracefile, openfunc=open, gnuplot=False):
+        self._tracefile = tracefile
+        self._openfunc = openfunc
+        self._gnuplot = gnuplot
+        self.read(tracefile, self.analyze, openfunc)
+        self.stats()
+
+    def read(self, tracefile, process, openfunc=open):
+        """Read tracefile and analyze every line."""
+        readfile(tracefile, process, openfunc)
+
+    def analyze(self, line):
+        """Analyze a trace line."""
+        pass
+
+    def stats(self):
+        """Print statistics."""
+        pass
