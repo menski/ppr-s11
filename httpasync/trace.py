@@ -50,3 +50,18 @@ def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
         # quit process
         stdin.write("quit\n")
         return gnuplot.wait()
+
+
+def readfile(filename, process, openfunc=open):
+    """
+    Read a file and process it by given function.
+
+    Arguments:
+    - `filename`    : filename to read
+    - `process`     : function to process lines
+    - `openfunc`    : function to open file (i.e. gzip.open)
+
+    """
+    with openfunc(filename, mode="rb") as file:
+        for line in file:
+            process(line.strip())
