@@ -59,7 +59,6 @@ def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
         # unset multiplot
         stdin.write("unset multiplot\n")
 
-
         # quit process
         stdin.write("quit\n")
         return gnuplot.wait()
@@ -166,7 +165,6 @@ class WikiAnalyzer(TraceAnalyzer):
             sys.exit(1)
         timestamp = float(timestamp)
 
-
         # test timestamp
         if timestamp < self._starttime:
             self._starttime = timestamp
@@ -240,3 +238,58 @@ class WikiAnalyzer(TraceAnalyzer):
         gnuplot(title=title, data=data, filename=self._tracefile,
                 ylabel="requests", xlabel="second", using="1:2",
                 styles=["impulses", "points pt 5"])
+
+
+class TraceFilter(object):
+    """A filter for traces."""
+
+    def __init__(self, tracefile, regex, openfunc=open):
+        self._tracefile = tracefile
+        self._openfunc = openfunc
+        self._regex = re.compile(regex)
+        self.read(self._tracefile, self.filter, openfunc)
+
+    def read(self, tracefile, process, openfunc=open):
+        """Read tracefile and analyze every line."""
+        readfile(tracefile, process, openfunc)
+
+    def filter(self, line):
+        """Filter line from tracefile."""
+        if self._regex.search(line):
+            self.process(line)
+
+    def process(self, line):
+        """Process filterd line from tracefile."""
+        pass
+
+
+class WikiFilter(TraceFilter):
+    """A filter for wikipedia traces from wikibench.eu."""
+
+    def __init__(self, tracefile, interval, regex, tpos=1, openfunc=open):
+        self._interval = interval
+        self._tpos = tpos
+        (path, ext) = os.path.splitext(tracefile)
+        self._filterfile = "%s.%d-%d.%s" % (path, interval[0], interval[1],
+                ext)
+        self._filter = openfunc(self._filterfile, "wb")
+        TraceFilter.__init__(self, tracefile, regex, openfunc)
+        self._filter.close()
+
+    def filter(self, line):
+        """Filter line from tracefile."""
+        timestamp = float(line.split(" ")[self._tpos])
+        if (timestamp >= self._interval[0] and
+            timestamp < self._interval[1] + 1):
+            TraceFilter.filter(line)
+
+    def process(self, line):
+        """Process filter line from tracefile."""
+        (nr, timestamp, url, method) = line.split(" ")
+
+        # accept only gets
+        if method != "-":
+            return
+
+        # write line in filtered tracefile
+        self._filter.write(line + "\n")
