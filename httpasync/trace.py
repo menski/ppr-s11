@@ -118,7 +118,8 @@ class WikiAnalyzer(TraceAnalyzer):
 
     HOST = re.compile(r'http://(([\w-]+\.)*\w+)/')
     UPLOAD = re.compile(r'http://upload.wikimedia.org/([\w\.]+/?)?')
-    WIKIUPLOAD = re.compile(r'http://upload.wikimedia.org/wikipedia/(\w*)/')
+    WIKIUPLOAD = re.compile(
+            r'http://upload.wikimedia.org/wikipedia/([\w\.]+/?)?')
 
     def init(self):
         """Initialize the analyzer."""
@@ -183,10 +184,10 @@ class WikiAnalyzer(TraceAnalyzer):
                 upload = m.group(1)
                 if upload is None:
                     upload = ""
-                if upload.lower() == "wikipedia":
+                if upload.lower() == "wikipedia/":
                     lang = WikiAnalyzer.WIKIUPLOAD.match(url)
                     if lang:
-                        upload = "/".join(
+                        upload = "".join(
                                 [upload.lower(), lang.group(1).lower()])
                 self.inc_dict(self._uploads, upload)
 
@@ -270,18 +271,21 @@ class WikiFilter(TraceFilter):
         self._interval = interval
         self._tpos = tpos
         (path, ext) = os.path.splitext(tracefile)
-        self._filterfile = "%s.%d-%d.%s" % (path, interval[0], interval[1],
+        self._filterfile = "%s.%d-%d%s" % (path, interval[0], interval[1],
                 ext)
         self._filter = openfunc(self._filterfile, "wb")
         TraceFilter.__init__(self, tracefile, regex, openfunc)
         self._filter.close()
+
+    def get_filename(self):
+        return self._filterfile
 
     def filter(self, line):
         """Filter line from tracefile."""
         timestamp = float(line.split(" ")[self._tpos])
         if (timestamp >= self._interval[0] and
             timestamp < self._interval[1] + 1):
-            TraceFilter.filter(line)
+            TraceFilter.filter(self, line)
 
     def process(self, line):
         """Process filter line from tracefile."""
