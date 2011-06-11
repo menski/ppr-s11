@@ -27,7 +27,12 @@ Dateien:
                       <tracefile>.eps Datei angelegt, welche das gnuplot log und
                       die gnuplot ausgabe enthalten.
 
+ - filter-trace.py  : Enthält einen TraceFilter für Wikipedia Traces von wikibench.eu.
+                      Es wird ein gefiltertes Tracefile angelegt uunter dem Name
+                      <tracefile>.<start>-<end> und optional analysiert.
+
 Aufruf:
     Siehe 'crawler.py -h' füre weitere Informationen.
     Siehe 'fetcher.py -h' füre weitere Informationen.
     Siehe 'analzye-trace.py -h' füre weitere Informationen.
+    Siehe 'filter-trace.py -h' füre weitere Informationen.

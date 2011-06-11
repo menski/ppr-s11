@@ -187,8 +187,12 @@ class WikiAnalyzer(TraceAnalyzer):
                 if upload.lower() == "wikipedia/":
                     lang = WikiAnalyzer.WIKIUPLOAD.match(url)
                     if lang:
+                        if lang.group(1) is None:
+                            lang = ""
+                        else:
+                            lang = lang.group(1)
                         upload = "".join(
-                                [upload.lower(), lang.group(1).lower()])
+                                [upload.lower(), lang.lower()])
                 self.inc_dict(self._uploads, upload)
 
             # increase method counter
@@ -238,7 +242,7 @@ class WikiAnalyzer(TraceAnalyzer):
         title = os.path.splitext(os.path.basename(self._tracefile))[0]
         gnuplot(title=title, data=data, filename=self._tracefile,
                 ylabel="requests", xlabel="second", using="1:2",
-                styles=["impulses", "points pt 5"])
+                styles=["impulses", "points lt 3 pt 5"])
 
 
 class TraceFilter(object):
@@ -267,9 +271,8 @@ class TraceFilter(object):
 class WikiFilter(TraceFilter):
     """A filter for wikipedia traces from wikibench.eu."""
 
-    def __init__(self, tracefile, interval, regex, tpos=1, openfunc=open):
+    def __init__(self, tracefile, interval, regex, openfunc=open):
         self._interval = interval
-        self._tpos = tpos
         (path, ext) = os.path.splitext(tracefile)
         self._filterfile = "%s.%d-%d%s" % (path, interval[0], interval[1],
                 ext)
@@ -282,10 +285,12 @@ class WikiFilter(TraceFilter):
 
     def filter(self, line):
         """Filter line from tracefile."""
-        timestamp = float(line.split(" ")[self._tpos])
+        (nr, timestamp, url, method) = line.split(" ")
+        timestamp = float(timestamp)
         if (timestamp >= self._interval[0] and
-            timestamp < self._interval[1] + 1):
-            TraceFilter.filter(self, line)
+            timestamp < self._interval[1] + 1 and
+            self._regex.match(url)):
+            self.process(line)
 
     def process(self, line):
         """Process filter line from tracefile."""
