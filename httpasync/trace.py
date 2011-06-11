@@ -5,6 +5,7 @@ E-Mail: sebastian.menski@googlemail.com'
 Description: Collection of classes and functions to analyze webserver traces.
 '''
 
+import sys
 import subprocess
 import re
 import time
@@ -13,7 +14,7 @@ from operator import itemgetter
 
 
 def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
-        style=None):
+        styles=["points"]):
     """Use gnuplot to plot given data. Optional save plot in a file."""
     with open("%s.log" % filename, "w") as output:
         # create process
@@ -27,10 +28,6 @@ def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
         # set output
         stdin.write('set terminal postscript color enhanced\n')
         stdin.write('set output "%s.eps"\n' % filename)
-        #stdin.write('set terminal png size 1984, 1488\n')
-        #stdin.write('set output "%s.png"\n' % filename)
-        #stdin.write('set terminal svg\n')
-        #stdin.write('set output "%s.svg"\n' % filename)
 
         # set axis labels
         if xlabel is not None:
@@ -44,19 +41,24 @@ def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
         # set grid
         stdin.write('set grid y\n')
 
+        # set multiplot
+        stdin.write('set multiplot\n')
+
         # create plot command
         plotcmd = 'plot "-"'
         if using is not None:
             plotcmd = " ".join([plotcmd, "using", using])
         plotcmd = " ".join([plotcmd, "notitle"])
-        if style is not None:
-            plotcmd = " ".join([plotcmd, "with", style])
-        stdin.write(plotcmd + "\n")
+        for style in styles:
+            stdin.write(" ".join([plotcmd, "with", style]) + "\n")
+            # data input
+            for line in data:
+                stdin.write(line + "\n")
+            stdin.write("e\n")
 
-        # data input
-        for line in data:
-            stdin.write(line + "\n")
-        stdin.write("e\n")
+        # unset multiplot
+        stdin.write("unset multiplot\n")
+
 
         # quit process
         stdin.write("quit\n")
@@ -156,8 +158,14 @@ class WikiAnalyzer(TraceAnalyzer):
         self._lines += 1
 
         # split line
-        (nr, timestamp, url, method) = line.split(" ")
+        try:
+            (nr, timestamp, url, method) = line.split(" ")
+        except ValueError:
+            print >> sys.stderr, ("ERROR: Unable to parse line. Wrong trace"
+            "trace type? Or compress file?")
+            sys.exit(1)
         timestamp = float(timestamp)
+
 
         # test timestamp
         if timestamp < self._starttime:
@@ -231,4 +239,4 @@ class WikiAnalyzer(TraceAnalyzer):
         title = os.path.splitext(os.path.basename(self._tracefile))[0]
         gnuplot(title=title, data=data, filename=self._tracefile,
                 ylabel="requests", xlabel="second", using="1:2",
-                style="impulses")
+                styles=["impulses", "points pt 5"])

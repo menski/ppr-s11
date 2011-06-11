@@ -5,20 +5,29 @@ generiert werden.
 
 Pakete:
  - httpasync:
-    - http:     Enthält die wichtigesten Grundklassen, wie HTTPAsyncClient
-                einen HTTP/1.1 Client der persistente Verbindungen unterstützt.
-                Oder HTTPCrawler der HTTPAsyncClient Instanzen nutzt um, in
-                einem eigenen Thread, asynchrone HTTP Requests zu senden.
-    - wiki:     Enthält die spezielen Wikipedia Instanzen von HTTPAsyncClient
-                und HTTPCrawler.
+    - http      : Enthält die wichtigesten Grundklassen, wie HTTPAsyncClient
+                  einen HTTP/1.1 Client der persistente Verbindungen unterstützt.
+                  Oder HTTPCrawler der HTTPAsyncClient Instanzen nutzt um, in
+                  einem eigenen Thread, asynchrone HTTP Requests zu senden.
+    - wiki      : Enthält die spezielen Wikipedia Instanzen von HTTPAsyncClient
+                  und HTTPCrawler.
+    - tracei    : Enhält Klassen und Funktionen zum verarbeiten von Traces.
 
 Dateien:
- - crawler.py : Enthält eine main()-Routine, welche mehere Crawler konfiguriert
-                und aufruft. Und so mit multithreading nutzt.
+ - crawler.py   : Enthält eine main()-Routine, welche mehere Crawler konfiguriert
+                  und aufruft. Und so mit multithreading nutzt.
 
- - fetcher.py : Enthält einen Datenbank fetcher für die Wikipedia MySQL
-                Datenbank um alle Artikel URL's zu generieren.
+ - fetcher.py   : Enthält einen Datenbank fetcher für die Wikipedia MySQL
+                  Datenbank um alle Artikel URL's zu generieren.
+
+ - analyze-trace.py : Enthält einen TraceAnalyzer für die Wikipedia Traces von
+                      wikibench.eu. Es wird eine <tracefile>.stats Datei angelegt,
+                      welche die Statistik des Trace enthälts. Wird die plot-Option
+                      aktiviert, wird zusätlich noch eine <tracefile>.log und
+                      <tracefile>.eps Datei angelegt, welche das gnuplot log und
+                      die gnuplot ausgabe enthalten.
 
 Aufruf:
     Siehe 'crawler.py -h' füre weitere Informationen.
     Siehe 'fetcher.py -h' füre weitere Informationen.
+    Siehe 'analzye-trace.py -h' füre weitere Informationen.
