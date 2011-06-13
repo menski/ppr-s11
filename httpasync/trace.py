@@ -82,7 +82,7 @@ def readfile(filename, process, openfunc=open):
 class TraceAnalyzer(object):
     """Analyze a trace and output.write(some statitics"""
 
-    def __init__(self, tracefile, openfunc=open, plot=False):
+    def __init__(self, tracefile, openfunc=open, plot=False, write=False):
         self._tracefile = tracefile
         self._openfunc = openfunc
         self._gnuplot = gnuplot
@@ -91,6 +91,8 @@ class TraceAnalyzer(object):
         self.stats()
         if plot:
             self.plot()
+        if write:
+            self.write()
 
     def init(self):
         """Initialize the analyzier."""
@@ -110,6 +112,10 @@ class TraceAnalyzer(object):
 
     def plot(self):
         """Plot statistics."""
+        pass
+
+    def write(self):
+        """Write special files."""
         pass
 
 
@@ -133,8 +139,11 @@ class WikiAnalyzer(TraceAnalyzer):
         self._endtime = 0
         self._hosts = dict()
         self._uploads = dict()
-        self._images = dict()
-        self._thumbs = dict()
+        self._pages = set()
+        self._images = set()
+        self._images_host = dict()
+        self._thumbs = set()
+        self._thumbs_host = dict()
         self._methods = dict()
         self._rps = dict()
 
@@ -200,9 +209,13 @@ class WikiAnalyzer(TraceAnalyzer):
                                 [upload.lower(), lang.lower()])
                 self.inc_dict(self._uploads, upload)
                 if WikiAnalyzer.THUMB.match(url):
-                    self.inc_dict(self._thumbs, upload)
+                    self.inc_dict(self._thumbs_host, upload)
+                    self._thumbs.add(url)
                 else:
-                    self.inc_dict(self._images, upload)
+                    self.inc_dict(self._images_host, upload)
+                    self._images.add(url)
+            else:
+                self._pages.add(url)
 
             # increase method counter
             self.inc_dict(self._methods, method)
@@ -238,10 +251,10 @@ class WikiAnalyzer(TraceAnalyzer):
             self.print_dict(self._uploads, output)
 
             output.write("\n[IMAGES]\n")
-            self.print_dict(self._images, output)
+            self.print_dict(self._images_host, output)
 
             output.write("\n[THUMBS]\n")
-            self.print_dict(self._thumbs, output)
+            self.print_dict(self._thumbs_host, output)
 
             output.write("\n[METHODS]\n")
             self.print_dict(self._methods, output)
@@ -258,6 +271,25 @@ class WikiAnalyzer(TraceAnalyzer):
         gnuplot(title=title, data=data, filename=self._tracefile,
                 ylabel="requests", xlabel="second", using="1:2",
                 styles=["impulses", "points lt 3 pt 5"])
+
+    def write(self):
+        """Write page, image and thumb list."""
+        (path, ext) = os.path.splitext(self._tracefile)
+        pagefile = ".page".join([path, ext])
+        imagefile = ".image".join([path, ext])
+        thumbfile = ".thumb".join([path, ext])
+
+        with self._openfunc(pagefile, "wb") as output:
+            for url in self._pages:
+                output.write(url + "\n")
+
+        with self._openfunc(imagefile, "wb") as output:
+            for url in self._images:
+                output.write(url + "\n")
+
+        with self._openfunc(thumbfile, "wb") as output:
+            for url in self._thumbs:
+                output.write(url + "\n")
 
 
 class TraceFilter(object):

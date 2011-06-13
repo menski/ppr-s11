@@ -20,6 +20,8 @@ Options:
   -a, --analyze                     : Analyze filtered tracefile.
   -p, --plot                        : Plot analyzed filtered tracefile 
                                       statistics. Whitout -a option ignored.
+  -w, --write                       : Write page, image and thumb list files.
+                                      Without -a option ignored.
   -h, --help                        : Print this help message
 '''
 
@@ -29,52 +31,17 @@ import getopt
 import gzip
 import httpasync.trace
 
-WIKI_REGEX = r'http://en.wikipedia.org'
-UPLOAD_REGEX = r'|'.join(['http://upload.wikimedia.org/wikipedia/commons/',
-        'http://upload.wikimedia.org/wikipedia/en/'
-        ])
-THUMB_REGEX = r'|'.join([url+'thumb/' for url in UPLOAD_REGEX.split('|')])
-URL_REGEX = r'|'.join([WIKI_REGEX, UPLOAD_REGEX])
-
-def filter_trace(tracefile, interval, openfunc=open):
-    """Filter tracefile and save it in file."""
-
-    (path, ext) = os.path.splitext(tracefile)
-    outputfile = "%s.%d-%d%s" % (path, interval[0], interval[1], ext)
-    pagefile = "%s.%d-%d.page%s" % (path, interval[0], interval[1], ext)
-    imgfile = "%s.%d-%d.img%s" % (path, interval[0], interval[1], ext)
-    thumbfile = "%s.%d-%d.thumb%s" % (path, interval[0], interval[1], ext)
-
-    with openfunc(outputfile, mode="wb") as ofile,\
-            openfunc(pagefile, mode="wb") as pfile,\
-            openfunc(imgfile, mode="wb") as ifile,\
-            openfunc(thumbfile, mode="wb") as tfile,\
-            openfunc(tracefile) as f:
-                for line in f:
-                    line = line.split(" ")
-                    timestamp = float(line[1])
-                    url = line[2]
-                    if timestamp >= interval[0] and\
-                        timestamp < interval[1] + 1 and\
-                        PATTERN.match(url) is not None:
-                        line = "%f %s\n" % (timestamp, url)
-                        ofile.write(line)
-                        line = "%s\n" % timestamp
-                        if IMG.match(url) is not None:
-                            if THUMB.search(url) is not None:
-                                tfile.write(line)
-                            else:
-                                ifile.write(line)
-                        else:
-                            pfile.write(line)
+URL_REGEX = r'|'.join([r'http://en.wikipedia.org',
+    r'http://upload.wikimedia.org/wikipedia/commons/',
+    r'http://upload.wikimedia.org/wikipedia/en/'])
 
 
 def main():
     """Start trace filter with sys.args."""
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "i:hr:f:zap",
+        opts, args = getopt.getopt(sys.argv[1:], "i:hr:f:zapw",
                 ["interval=", "help", "file=", "gzip", "regex=", "analyze",
-                 "plot"])
+                 "plot", "write"])
     except getopt.GetoptError, e:
         print >> sys.stderr, e
         print __doc__
@@ -88,6 +55,7 @@ def main():
     regex = URL_REGEX
     analyze = False
     plot = False
+    write = False
 
     # process options
     for o, a in opts:
@@ -121,6 +89,8 @@ def main():
             analyze = True
         elif o in ("-p", "--plot"):
             plot = True
+        elif o in ("-w", "--write"):
+            write = True
 
     if interval is None:
         print >> sys.stderr, "ERROR: No interval given"
@@ -136,7 +106,8 @@ def main():
             openfunc=openfunc)
 
     if analyze:
-        httpasync.trace.WikiAnalyzer(filter.get_filename(), openfunc, plot)
+        httpasync.trace.WikiAnalyzer(filter.get_filename(), openfunc, plot, 
+                write)
 
 
 if __name__ == '__main__':
