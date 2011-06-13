@@ -65,8 +65,8 @@ def main():
         elif o in ("-i", "--interval"):
             try:
                 (start, x) = a.split(":")
-                start = int(start)
-                x = int(x)
+                start = float(start)
+                x = float(x)
             except ValueError:
                 print >> sys.stderr, "ERROR: Unable to parse interval argument"
                 sys.exit(2)
