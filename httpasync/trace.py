@@ -244,6 +244,8 @@ class WikiAnalyzer(TraceAnalyzer):
             output.write(sformat % ("requests", str(self._requests)))
             output.write(sformat % ("errors", str(len(self._errors))))
 
+            sformat = "%30s: %8d\n"
+
             output.write("\n[HOSTS]\n")
             self.print_dict(self._hosts, output)
 
@@ -252,9 +254,11 @@ class WikiAnalyzer(TraceAnalyzer):
 
             output.write("\n[IMAGES]\n")
             self.print_dict(self._images_host, output)
+            output.write(sformat % ("files", len(self._images)))
 
             output.write("\n[THUMBS]\n")
             self.print_dict(self._thumbs_host, output)
+            output.write(sformat % ("files", len(self._thumbs)))
 
             output.write("\n[METHODS]\n")
             self.print_dict(self._methods, output)
