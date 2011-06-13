@@ -117,9 +117,12 @@ class WikiAnalyzer(TraceAnalyzer):
     """Analyze a wiki trace from wikibench.eu"""
 
     HOST = re.compile(r'http://(([\w-]+\.)*\w+)/')
-    UPLOAD = re.compile(r'http://upload.wikimedia.org/([\w\.]+/?)?')
-    WIKIUPLOAD = re.compile(
-            r'http://upload.wikimedia.org/wikipedia/([\w\.]+/?)?')
+    UPLOAD_REGEX = r'http://upload.wikimedia.org/([\w\.]+/?)?'
+    UPLOAD = re.compile(UPLOAD_REGEX)
+    WIKIUPLOAD_REGEX = r'http://upload.wikimedia.org/wikipedia/([\w\.]+/?)?'
+    WIKIUPLOAD = re.compile(WIKIUPLOAD_REGEX)
+    THUMB = re.compile(r'|'.join([UPLOAD_REGEX + "thumb/", 
+        WIKIUPLOAD_REGEX + "thumb/"]))
 
     def init(self):
         """Initialize the analyzer."""
@@ -130,6 +133,8 @@ class WikiAnalyzer(TraceAnalyzer):
         self._endtime = 0
         self._hosts = dict()
         self._uploads = dict()
+        self._images = dict()
+        self._thumbs = dict()
         self._methods = dict()
         self._rps = dict()
 
@@ -194,6 +199,10 @@ class WikiAnalyzer(TraceAnalyzer):
                         upload = "".join(
                                 [upload.lower(), lang.lower()])
                 self.inc_dict(self._uploads, upload)
+                if WikiAnalyzer.THUMB.match(url):
+                    self.inc_dict(self._thumbs, upload)
+                else:
+                    self.inc_dict(self._images, upload)
 
             # increase method counter
             self.inc_dict(self._methods, method)
@@ -227,6 +236,12 @@ class WikiAnalyzer(TraceAnalyzer):
 
             output.write("\n[UPLOADS]\n")
             self.print_dict(self._uploads, output)
+
+            output.write("\n[IMAGES]\n")
+            self.print_dict(self._images, output)
+
+            output.write("\n[THUMBS]\n")
+            self.print_dict(self._thumbs, output)
 
             output.write("\n[METHODS]\n")
             self.print_dict(self._methods, output)

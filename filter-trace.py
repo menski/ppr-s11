@@ -29,12 +29,12 @@ import getopt
 import gzip
 import httpasync.trace
 
-
-URL_REGEX = r'|'.join([
-        "http://en.wikipedia.org",
-        "http://upload.wikimedia.org/wikipedia/commons/",
-        "http://upload.wikimedia.org/wikipedia/en/"
+WIKI_REGEX = r'http://en.wikipedia.org'
+UPLOAD_REGEX = r'|'.join(['http://upload.wikimedia.org/wikipedia/commons/',
+        'http://upload.wikimedia.org/wikipedia/en/'
         ])
+THUMB_REGEX = r'|'.join([url+'thumb/' for url in UPLOAD_REGEX.split('|')])
+URL_REGEX = r'|'.join([WIKI_REGEX, UPLOAD_REGEX])
 
 def filter_trace(tracefile, interval, openfunc=open):
     """Filter tracefile and save it in file."""
