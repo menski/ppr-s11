@@ -274,7 +274,7 @@ class WikiAnalyzer(TraceAnalyzer):
         title = os.path.splitext(os.path.basename(self._tracefile))[0]
         gnuplot(title=title, data=data, filename=self._tracefile,
                 ylabel="requests", xlabel="second", using="1:2",
-                styles=["impulses", "points lt 3 pt 5"])
+                styles=["points lt 3 pt 5 ps 0.75"])
 
     def write(self):
         """Write page, image and thumb list."""
