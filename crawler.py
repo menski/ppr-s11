@@ -18,6 +18,7 @@ Options:
     -a, --async     : Number of asynchronous requests (default: 10)
     -l, --log       : Log level (default: DEBUG)
     -d, --dump      : Dump received chunk data (see Dump)
+    -z, --gzip      : Enable gzip compression for file input.
     --help          : Print this help message
 
 Dump:
@@ -34,7 +35,7 @@ import logging
 from collections import deque
 from math import ceil
 from httpasync.wiki import WikiCrawler
-
+import gzip
 
 THREADS = []
 
@@ -50,9 +51,9 @@ if not log.handlers:
 def main():
     """Start crawler with sys.args"""
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "h:p:f:s:c:t:a:l:d:",
+        opts, args = getopt.getopt(sys.argv[1:], "h:p:f:s:c:t:a:l:d:z",
                 ["host=", "port=", "file=", "start=", "count=",
-                    "threads=", "async=", "log=", "dump=", "help"])
+                    "threads=", "async=", "log=", "dump=", "gzip", "help"])
     except getopt.GetoptError, e:
         print >> sys.stderr, e
         print __doc__
@@ -68,6 +69,7 @@ def main():
     async = 10
     loglevel = 10
     dump = None
+    openfunc = open
 
     # process options
     for o, a in opts:
@@ -135,11 +137,13 @@ def main():
             else:
                 print >> sys.stderr, "Unknown dump level"
                 sys.exit(1)
+        elif o in ("-z", "--gzip"):
+            openfunc = gzip.open
 
     log.setLevel(loglevel)
 
     # get paths
-    paths = deque(readpaths(pathfile, start, count))
+    paths = deque(readpaths(pathfile, start, count, openfunc))
 
     min_threads = min(threads, int(ceil(len(paths) / float(async))))
     if min_threads < threads:
@@ -161,10 +165,10 @@ def main():
                 THREADS.remove(thread)
 
 
-def readpaths(pathfile, start=0, count=100):
+def readpaths(pathfile, start=0, count=100, openfunc=open):
     """Read paths from a file."""
     try:
-        with open(pathfile) as f:
+        with openfunc(pathfile) as f:
             paths = f.readlines()[start:(start + count)]
         return [p.strip() for p in paths]
     except IOError, e:
