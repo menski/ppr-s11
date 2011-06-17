@@ -24,11 +24,11 @@ Dateien:
                       wikibench.eu. Es wird eine <tracefile>.stats Datei angelegt,
                       welche die Statistik des Trace enthälts. Wird die plot-Option
                       aktiviert, wird zusätlich noch eine <tracefile>.log und
-                      <tracefile>.eps Datei angelegt, welche das gnuplot log und
-                      die gnuplot ausgabe enthalten.
+                      <tracefile>.eps Datei angelegt, welche das gnuplot Log und
+                      die gnuplot Ausgabe enthalten.
 
  - filter-trace.py  : Enthält einen TraceFilter für Wikipedia Traces von wikibench.eu.
-                      Es wird ein gefiltertes Tracefile angelegt uunter dem Name
+                      Es wird ein gefiltertes Tracefile angelegt unter dem Name
                       <tracefile>.<start>-<end> und optional analysiert.
 
 Aufruf:
