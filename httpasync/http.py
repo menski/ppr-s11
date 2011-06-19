@@ -241,9 +241,15 @@ class HTTPCrawler(threading.Thread):
     def create_client(self, host, paths, port, channels, loglevel):
         return HTTPAsyncClient(host, paths, port, channels, loglevel)
 
+    def check_clients(self):
+        """Postprocessing clients after asyncore loop."""
+        # find abortet request paths
+        for client in self._clients:
+            if client.unfinished_path():
+                self._paths.append(client.unfinished_path())
+
     def run(self):
         """Run the HTTPCrawler thread."""
-
         # Test connection (self._retry times)
         while self._retry > 0:
             self._retry -= 1
@@ -277,11 +283,7 @@ class HTTPCrawler(threading.Thread):
 
             # start asynchronous requests
             asyncore.loop(map=self._channels)
-
-            # find abortet request paths
-            for client in self._clients:
-                if client.unfinished_path():
-                    self._paths.append(client.unfinished_path())
+            self.check_clients()
 
     def terminate(self):
         """Terminate the crawler and his clients."""

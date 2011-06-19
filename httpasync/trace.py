@@ -9,8 +9,9 @@ import sys
 import subprocess
 import re
 import time
-import os.path
+import os
 from operator import itemgetter
+from http import HTTPAsyncClient, HTTPCrawler
 
 
 def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
@@ -127,7 +128,7 @@ class WikiAnalyzer(TraceAnalyzer):
     UPLOAD = re.compile(UPLOAD_REGEX)
     WIKIUPLOAD_REGEX = r'http://upload.wikimedia.org/wikipedia/([\w\.]+/?)?'
     WIKIUPLOAD = re.compile(WIKIUPLOAD_REGEX)
-    THUMB = re.compile(r'|'.join([UPLOAD_REGEX + "thumb/", 
+    THUMB = re.compile(r'|'.join([UPLOAD_REGEX + "thumb/",
         WIKIUPLOAD_REGEX + "thumb/"]))
 
     def init(self):
@@ -353,3 +354,65 @@ class WikiFilter(TraceFilter):
 
         # write line in filtered tracefile
         self._filter.write(line + "\n")
+
+
+class ImageClient(HTTPAsyncClient):
+    """HTTPAsyncClient for image downloads."""
+
+    def __init__(self, host, paths, imgdir, port=80, channels=None,
+            loglevel=10):
+        """
+        ImageClient is an asynchronous HTTP/1.1 client.
+
+        This client sends asynchronous HTTP/1.1 requests with persistent
+        connections and save the response in a file.
+
+        Arguments:
+        - `host`     : host address
+        - `paths`    : deque with paths to request
+        - `imgdir`   : dir path to save files
+        - `port`     : port number
+        - `channels` : dict for asyncore.loop
+        - `loglevel` : numeric log level
+        """
+
+        HTTPAsyncClient.__init__(self, host, paths, port, channels, loglevel)
+        self._imgdir = imgdir
+
+    def process_response(self, header, chunk):
+        """Save image in file."""
+        HTTPAsyncClient.process_response(self, header, chunk)
+        file_path = self._imgdir + self._path
+        abs_path = os.path.abspath(file_path)
+        directory = os.path.split(abs_path)[0]
+        try:
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            with open(abs_path, "wb") as image:
+                image.write(chunk)
+            self._log.info("%s was written to %s" % (self._path, abs_path))
+        except Exception, e:
+            print e
+
+
+class ImageCrawler(HTTPCrawler):
+    """Image crawler instance of HTTPCrawler."""
+
+    def __init__(self, host, paths, imgdir, port=80, async=4, loglevel=10,
+            retry=7):
+        HTTPCrawler.__init__(self, host, paths, port, async, loglevel, retry)
+        self._imgdir = imgdir
+        self._not_found = []
+
+    def create_client(self, host, paths, port, channels, loglevel):
+        return ImageClient(host, paths, self._imgdir, port, channels, loglevel)
+
+    def check_clients(self):
+        """Postprocessing clients after asyncore loop."""
+        # find abortet request paths
+        for client in self._clients:
+            if client.unfinished_path():
+                self._not_found.append(client.unfinished_path())
+
+    def not_found(self):
+        return self._not_fount
