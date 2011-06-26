@@ -118,7 +118,8 @@ def read_path_file(filename, imgdir, openfunc=open):
     pattern = re.compile(HOST)
     hosts = dict()
 
-    with openfunc(filename) as input:
+    input = openfunc(filename)
+    try:
         for line in input:
             line = line.strip()
             m = pattern.search(line)
@@ -134,6 +135,8 @@ def read_path_file(filename, imgdir, openfunc=open):
                     hosts[host].add(prefix + path)
             else:
                 log.error("Unable to parse line '%'" % line)
+    finally:
+        input.close()
 
     return hosts
 
