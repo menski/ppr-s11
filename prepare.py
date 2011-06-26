@@ -4,9 +4,16 @@ File: prepare.py
 Author: Sebastian Menski
 E-Mail: sebastian.menski@googlemail.com'
 Description: Prepare system for servload test.
+
+Usage: prepare.py [OPTIONS]
+
+Options:
+    -f, --config    : Config file
+    -h, --help      : Print this help message
+
 '''
 
-import argparse
+import getopt
 import os.path
 import sys
 from ConfigParser import SafeConfigParser
@@ -28,39 +35,49 @@ if not log.handlers:
 
 def main():
     """Read config and prepare system for servload test."""
-    parser = argparse.ArgumentParser(
-            description="Prepare system for servload benchmark.")
-    parser.add_argument('-f', '--config', default="ib.cfg", help="config file")
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "hf:", ["help", "config="])
+    except getopt.GetoptError, e:
+        print >> sys.stderr, e
+        print __doc__
+        sys.exit(2)
 
-    args = parser.parse_args()
+    config = "ib.cfg"
 
-    if not os.path.isfile(args.config):
+    for o, a in opts:
+        if o in ["-h", "--help"]:
+            print __doc__
+            sys.exit(0)
+        if o in ["-f", "--config"]:
+            config = a
+
+    if not os.path.isfile(config):
         print >>sys.stderr, "ERROR: Unable to find config file '%s'\n" % (
                 args.config)
-        parser.print_help()
+        print __doc__
         sys.exit(1)
 
     cfgparser = SafeConfigParser()
-    cfgparser.read(args.config)
+    cfgparser.read(config)
     imgdir = os.path.abspath(cfgparser.get("general", "image_dir"))
     if not os.path.isdir(imgdir):
         print >>sys.stderr, "ERROR: Unable to find image directory '%s'\n" % (
                 imgdir)
-        parser.print_help()
+        print __doc__
         sys.exit(1)
 
     imgurls = os.path.abspath(cfgparser.get("general", "image_urls"))
     if not os.path.isfile(imgurls):
         print >>sys.stderr, "ERROR: Unable to find file '%s'\n" % (
                 imgurls)
-        parser.print_help()
+        print __doc__
         sys.exit(1)
 
     thumburls = os.path.abspath(cfgparser.get("general", "thumb_urls"))
     if not os.path.isfile(thumburls):
         print >>sys.stderr, "ERROR: Unable to find file '%s'\n" % (
                 thumburls)
-        parser.print_help()
+        print __doc__
         sys.exit(1)
 
     gz = cfgparser.get("general", "gzip")
