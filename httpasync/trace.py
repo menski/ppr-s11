@@ -378,11 +378,18 @@ class ImageClient(HTTPAsyncClient):
 
         HTTPAsyncClient.__init__(self, host, paths, port, channels, loglevel)
         self._imgdir = imgdir
+        self._not_found = set()
 
     def process_response(self, header, chunk):
         """Save image in file."""
+        if self._status != "200":
+            self._not_found.add(self.hostself.host + self._path)
+            return
+
         HTTPAsyncClient.process_response(self, header, chunk)
-        file_path = self._imgdir + self._path
+        img_path = re.sub(r'^/[\w-]+/[\w-]+/', '/', self._path)
+        print img_path
+        file_path = self._imgdir + img_path
         abs_path = os.path.abspath(file_path)
         directory = os.path.split(abs_path)[0]
         try:
@@ -394,6 +401,9 @@ class ImageClient(HTTPAsyncClient):
         except Exception, e:
             print e
 
+    def not_found(self):
+        return self._not_found
+
 
 class ImageCrawler(HTTPCrawler):
     """Image crawler instance of HTTPCrawler."""
@@ -402,7 +412,7 @@ class ImageCrawler(HTTPCrawler):
             retry=7):
         HTTPCrawler.__init__(self, host, paths, port, async, loglevel, retry)
         self._imgdir = imgdir
-        self._not_found = []
+        self._not_found = set()
 
     def create_client(self, host, paths, port, channels, loglevel):
         return ImageClient(host, paths, self._imgdir, port, channels, loglevel)
@@ -412,7 +422,8 @@ class ImageCrawler(HTTPCrawler):
         # find abortet request paths
         for client in self._clients:
             if client.unfinished_path():
-                self._not_found.append(client.unfinished_path())
+                self._not_found.add(client.unfinished_path())
+            self._not_found.update(client.not_found())
 
     def not_found(self):
-        return self._not_fount
+        return self._not_found
