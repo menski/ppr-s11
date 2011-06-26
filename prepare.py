@@ -14,7 +14,7 @@ Options:
 '''
 
 import getopt
-import os.path
+import os
 import sys
 from ConfigParser import SafeConfigParser
 import gzip
@@ -22,6 +22,7 @@ import re
 from collections import deque
 import logging
 from httpasync import trace
+import shutil
 
 
 log = logging.getLogger()
@@ -66,6 +67,13 @@ def main():
         print __doc__
         sys.exit(1)
 
+    wiki_imgdir = os.path.abspath(cfgparser.get("general", "wiki_image_dir"))
+    if not os.path.isdir(wiki_imgdir):
+        print >>sys.stderr,\
+            "ERROR: Unable to wikipedia find image directory '%s'\n" % (imgdir)
+        print __doc__
+        sys.exit(1)
+
     imgurls = os.path.abspath(cfgparser.get("general", "image_urls"))
     if not os.path.isfile(imgurls):
         print >>sys.stderr, "ERROR: Unable to find file '%s'\n" % (
@@ -90,7 +98,7 @@ def main():
     thumb_paths = read_path_file(thumburls, imgdir, openfunc)
 
     for host in img_paths:
-        paths = deque(img_paths[host])
+        paths = deque(img_paths[host][0])
         size = len(paths)
         crawler = trace.ImageCrawler(host, paths, imgdir)
         crawler.start()
@@ -100,9 +108,10 @@ def main():
         for url in not_found:
             stat += "\n" + url
         log.debug(stat)
+        copy_files(img_paths[host][1], imgdir, wiki_imgdir)
 
     for host in thumb_paths:
-        paths = deque(thumb_paths[host])
+        paths = deque(thumb_paths[host][0])
         size = len(paths)
         crawler = trace.ImageCrawler(host, paths, imgdir)
         crawler.start()
@@ -112,6 +121,7 @@ def main():
         for url in not_found:
             stat += "\n" + url
         log.debug(stat)
+        copy_files(thumb_paths[host][1], imgdir, wiki_imgdir)
 
 def read_path_file(filename, imgdir, openfunc=open):
     HOST = r'http://(?P<host>([\w-]+\.)*\w+)(?P<prefix>/[\w-]+/[\w-]+)/'
@@ -127,12 +137,13 @@ def read_path_file(filename, imgdir, openfunc=open):
                 host = m.group('host')
                 prefix = m.group('prefix')
                 path = re.sub(HOST, '/', line)
+                if host not in hosts:
+                    hosts[host] = (set(), set())
                 if os.path.isfile(os.path.join(imgdir, path[1:])):
                     log.debug("File already exists '%s'", path)
                 else:
-                    if host not in hosts:
-                        hosts[host] = set()
-                    hosts[host].add(prefix + path)
+                    hosts[host][0].add(prefix + path)
+                hosts[host][1].add(path)
             else:
                 log.error("Unable to parse line '%'" % line)
     finally:
@@ -140,6 +151,14 @@ def read_path_file(filename, imgdir, openfunc=open):
 
     return hosts
 
+def copy_files(paths, imgdir, wiki_imgdir):
+    for img_path in paths:
+        if os.path.isfile(imgdir + img_path):
+            try:
+                os.makedirs(wiki_imgdir + os.path.dirname(img_path))
+            except OSError:
+                pass
+            shutil.copy(imgdir + img_path, wiki_imgdir + img_path)
 
 
 if __name__ == '__main__':
