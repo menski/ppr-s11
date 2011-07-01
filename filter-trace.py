@@ -8,6 +8,7 @@ Description: Filter wikipedia traces from wikibench.eu.
 Usage: filter-trace.py [OPTIONS]
 
 Options:
+  -h, --host                        : Host for url rewrite
   -i, --interval=START:[END|SIZE]   : Interval to filter. START denotes the
                                       start unix time stamp. END denotes the
                                       end unix timestamp (including) or SIZE
@@ -18,11 +19,11 @@ Options:
   -z, --gzip                        : Enable gzip compression for file input
                                       and output. (recommend)
   -a, --analyze                     : Analyze filtered tracefile.
-  -p, --plot                        : Plot analyzed filtered tracefile 
+  -p, --plot                        : Plot analyzed filtered tracefile
                                       statistics. Whitout -a option ignored.
   -w, --write                       : Write page, image and thumb list files.
                                       Without -a option ignored.
-  -h, --help                        : Print this help message
+  --help                            : Print this help message
 '''
 
 import sys
@@ -39,15 +40,16 @@ URL_REGEX = r'|'.join([r'http://en.wikipedia.org',
 def main():
     """Start trace filter with sys.args."""
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "i:hr:f:zapw",
-                ["interval=", "help", "file=", "gzip", "regex=", "analyze",
-                 "plot", "write"])
+        opts, args = getopt.getopt(sys.argv[1:], "i:h:r:f:zapw",
+                ["interval=", "host=", "help", "file=", "gzip", "regex=",
+                 "analyze", "plot", "write"])
     except getopt.GetoptError, e:
         print >> sys.stderr, e
         print __doc__
         sys.exit(2)
 
     # defaults
+    host = "lb"
     interval = None
     interval = (1194892290, 1194894090)
     tracefile = None
@@ -59,9 +61,11 @@ def main():
 
     # process options
     for o, a in opts:
-        if o in ("-h", "--help"):
+        if o in ("--help"):
             print __doc__
             sys.exit(0)
+        elif o in ("-h", "--host"):
+            host = a
         elif o in ("-i", "--interval"):
             try:
                 (start, x) = a.split(":")
@@ -102,11 +106,11 @@ def main():
         print __doc__
         sys.exit(2)
 
-    filter = httpasync.trace.WikiFilter(tracefile, interval, regex, 
+    filter = httpasync.trace.WikiFilter(tracefile, host, interval, regex,
             openfunc=openfunc)
 
     if analyze:
-        httpasync.trace.WikiAnalyzer(filter.get_filename(), openfunc, plot, 
+        httpasync.trace.WikiAnalyzer(filter.get_filename(), openfunc, plot,
                 write)
 
 

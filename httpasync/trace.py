@@ -76,9 +76,12 @@ def readfile(filename, process, openfunc=open):
     - `openfunc`    : function to open file (i.e. gzip.open)
 
     """
-    with openfunc(filename, mode="rb") as file:
+    file = openfunc(filename, mode="rb")
+    try:
         for line in file:
             process(line.strip())
+    finally:
+        file.close()
 
 
 class TraceAnalyzer(object):
@@ -285,17 +288,17 @@ class WikiAnalyzer(TraceAnalyzer):
         imagefile = ".image".join([path, ext])
         thumbfile = ".thumb".join([path, ext])
 
-        with self._openfunc(pagefile, "wb") as output:
-            for url in self._pages:
-                output.write(url + "\n")
+        self.writefile(pagefile, self._pages)
+        self.writefile(imagefile, self._images)
+        self.writefile(thumbfile, self._thumbs)
 
-        with self._openfunc(imagefile, "wb") as output:
-            for url in self._images:
+    def writefile(self, filename, content):
+        output = self._openfunc(filename, "wb")
+        try:
+            for url in content:
                 output.write(url + "\n")
-
-        with self._openfunc(thumbfile, "wb") as output:
-            for url in self._thumbs:
-                output.write(url + "\n")
+        finally:
+            output.close()
 
 
 class TraceFilter(object):
@@ -324,7 +327,8 @@ class TraceFilter(object):
 class WikiFilter(TraceFilter):
     """A filter for wikipedia traces from wikibench.eu."""
 
-    def __init__(self, tracefile, interval, regex, openfunc=open):
+    def __init__(self, tracefile, host, interval, regex, openfunc=open):
+        self._host = host
         self._interval = interval
         (path, ext) = os.path.splitext(tracefile)
         self._filterfile = "%s.%d-%d%s" % (path, interval[0], interval[1],
@@ -354,6 +358,15 @@ class WikiFilter(TraceFilter):
             return
 
         # write line in filtered tracefile
+        url = re.sub("^http://en.wikipedia.org/wiki/", self._host + "/wiki/",
+                url)
+        url = re.sub("^http://en.wikipedia.org/w/", self._host + "/w/", url)
+        url = re.sub("^http://en.wikipedia.org/", self._host + "/w/", url)
+        url = re.sub("^http://upload.wikimedia.org/wikipedia/[a-z]+/",
+                self._host + "/w/images/", url)
+
+        line = " ".join([nr, timestamp, url, method])
+
         self._filter.write(line + "\n")
 
 
