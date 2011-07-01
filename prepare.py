@@ -8,7 +8,8 @@ Description: Prepare system for servload test.
 Usage: prepare.py [OPTIONS]
 
 Options:
-    -f, --config    : Config file
+    -c, --config    : Config file
+    -t, --threads   : Number of threads
     -h, --help      : Print this help message
 
 '''
@@ -39,20 +40,33 @@ if not log.handlers:
 def main():
     """Read config and prepare system for servload test."""
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hf:", ["help", "config="])
+        opts, args = getopt.getopt(sys.argv[1:], "hc:t:",
+                ["help", "config=", "threads="])
     except getopt.GetoptError, e:
         print >> sys.stderr, e
         print __doc__
         sys.exit(2)
 
+    # defaults
     config = "ib.cfg"
+    threads = 2
 
     for o, a in opts:
         if o in ["-h", "--help"]:
             print __doc__
             sys.exit(0)
-        if o in ["-f", "--config"]:
+        if o in ["-c", "--config"]:
             config = a
+        if o in ["-t", "--threads"]:
+            try:
+                threads = int(a)
+                if threads < 1:
+                    print >> sys.stderr, "Thread count must be greater 0"
+                    sys.exit(2)
+            except ValueError, e:
+                print >> sys.stderr, "Thread count must be a number"
+                sys.exit(2)
+
 
     if not os.path.isfile(config):
         print >> sys.stderr, "ERROR: Unable to find config file '%s'\n" % (
@@ -106,33 +120,8 @@ def main():
     img_paths = read_path_file(imgurls, imgdir, openfunc)
     thumb_paths = read_path_file(thumburls, imgdir, openfunc)
 
-    # TODO: Threading
-
-    for host in img_paths:
-        paths = deque(img_paths[host][0])
-        size = len(paths)
-        crawler = trace.ImageCrawler(host, paths, imgdir)
-        crawler.start()
-        crawler.join()
-        not_found = crawler.not_found()
-        stat = "Statistic: Unable to find %d/%d" % (len(not_found), size)
-        for url in not_found:
-            stat += "\n" + url
-        log.debug(stat)
-        copy_files(img_paths[host][1], imgdir, wiki_imgdir)
-
-    for host in thumb_paths:
-        paths = deque(thumb_paths[host][0])
-        size = len(paths)
-        crawler = trace.ImageCrawler(host, paths, imgdir)
-        crawler.start()
-        crawler.join()
-        not_found = crawler.not_found()
-        stat = "Statistic: Unable to find %d/%d" % (len(not_found), size)
-        for url in not_found:
-            stat += "\n" + url
-        log.debug(stat)
-        copy_files(thumb_paths[host][1], imgdir, wiki_imgdir)
+    process_paths(img_paths, imgdir, wiki_imgdir, threads)
+    process_paths(thumb_paths, imgdir, wiki_imgdir, threads)
 
 
 def read_path_file(filename, imgdir, openfunc=open):
@@ -163,6 +152,25 @@ def read_path_file(filename, imgdir, openfunc=open):
 
     return hosts
 
+
+def process_paths(paths, imgdir, wiki_imgdir, threads=2):
+    for host in paths:
+        p = deque(paths[host][0])
+        size = len(p)
+        thread = []
+        for i in range(0, threads):
+            crawler = trace.ImageCrawler(host, p, imgdir)
+            crawler.start()
+            thread.append(crawler)
+        not_found = set()
+        for t in thread:
+            t.join()
+            not_found.update(t.not_found())
+        stat = "Statistic: Unable to find %d/%d" % (len(not_found), size)
+        for url in not_found:
+            stat += "\n" + url
+        log.debug(stat)
+        copy_files(paths[host][1], imgdir, wiki_imgdir)
 
 def copy_files(paths, imgdir, wiki_imgdir):
     for img_path in paths:
