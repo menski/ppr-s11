@@ -23,6 +23,7 @@ from collections import deque
 import logging
 from httpasync import trace
 import shutil
+import urllib
 
 
 log = logging.getLogger()
@@ -33,6 +34,7 @@ if not log.handlers:
     handler.setFormatter(frm)
     log.addHandler(handler)
     log.setLevel(logging.DEBUG)
+
 
 def main():
     """Read config and prepare system for servload test."""
@@ -53,7 +55,7 @@ def main():
             config = a
 
     if not os.path.isfile(config):
-        print >>sys.stderr, "ERROR: Unable to find config file '%s'\n" % (
+        print >> sys.stderr, "ERROR: Unable to find config file '%s'\n" % (
                 args.config)
         print __doc__
         sys.exit(1)
@@ -62,40 +64,49 @@ def main():
     cfgparser.read(config)
     imgdir = os.path.abspath(cfgparser.get("general", "image_dir"))
     if not os.path.isdir(imgdir):
-        print >>sys.stderr, "ERROR: Unable to find image directory '%s'\n" % (
+        print >> sys.stderr, "ERROR: Unable to find image directory '%s'\n" % (
                 imgdir)
         print __doc__
         sys.exit(1)
 
     wiki_imgdir = os.path.abspath(cfgparser.get("general", "wiki_image_dir"))
     if not os.path.isdir(wiki_imgdir):
-        print >>sys.stderr,\
+        print >> sys.stderr,\
             "ERROR: Unable to wikipedia find image directory '%s'\n" % (imgdir)
         print __doc__
         sys.exit(1)
 
     imgurls = os.path.abspath(cfgparser.get("general", "image_urls"))
     if not os.path.isfile(imgurls):
-        print >>sys.stderr, "ERROR: Unable to find file '%s'\n" % (
+        print >> sys.stderr, "ERROR: Unable to find file '%s'\n" % (
                 imgurls)
         print __doc__
         sys.exit(1)
 
     thumburls = os.path.abspath(cfgparser.get("general", "thumb_urls"))
     if not os.path.isfile(thumburls):
-        print >>sys.stderr, "ERROR: Unable to find file '%s'\n" % (
+        print >> sys.stderr, "ERROR: Unable to find file '%s'\n" % (
                 thumburls)
         print __doc__
         sys.exit(1)
 
-    gz = cfgparser.get("general", "gzip")
+    pageurls = os.path.abspath(cfgparser.get("general", "page_urls"))
+    if not os.path.isfile(thumburls):
+        print >> sys.stderr, "ERROR: Unable to find file '%s'\n" % (
+                pageurls)
+        print __doc__
+        sys.exit(1)
+
+    gz = cfgparser.getboolean("general", "gzip")
     if gz:
-        openfunc=gzip.open
+        openfunc = gzip.open
     else:
-        openfunc=open
+        openfunc = open
 
     img_paths = read_path_file(imgurls, imgdir, openfunc)
     thumb_paths = read_path_file(thumburls, imgdir, openfunc)
+
+    # TODO: Threading
 
     for host in img_paths:
         paths = deque(img_paths[host][0])
@@ -123,6 +134,7 @@ def main():
         log.debug(stat)
         copy_files(thumb_paths[host][1], imgdir, wiki_imgdir)
 
+
 def read_path_file(filename, imgdir, openfunc=open):
     HOST = r'http://(?P<host>([\w-]+\.)*\w+)(?P<prefix>/[\w-]+/[\w-]+)/'
     pattern = re.compile(HOST)
@@ -136,7 +148,7 @@ def read_path_file(filename, imgdir, openfunc=open):
             if m is not None:
                 host = m.group('host')
                 prefix = m.group('prefix')
-                path = re.sub(HOST, '/', line)
+                path = urllib.unquote(re.sub(HOST, '/', line))
                 if host not in hosts:
                     hosts[host] = (set(), set())
                 if os.path.isfile(os.path.join(imgdir, path[1:])):
@@ -150,6 +162,7 @@ def read_path_file(filename, imgdir, openfunc=open):
         input.close()
 
     return hosts
+
 
 def copy_files(paths, imgdir, wiki_imgdir):
     for img_path in paths:

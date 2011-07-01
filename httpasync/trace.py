@@ -10,6 +10,7 @@ import subprocess
 import re
 import time
 import os
+import urllib
 from operator import itemgetter
 from http import HTTPAsyncClient, HTTPCrawler
 
@@ -388,8 +389,7 @@ class ImageClient(HTTPAsyncClient):
 
         HTTPAsyncClient.process_response(self, header, chunk)
         img_path = re.sub(r'^/[\w-]+/[\w-]+/', '/', self._path)
-        print img_path
-        file_path = self._imgdir + img_path
+        file_path = self._imgdir + urllib.unquote(img_path)
         abs_path = os.path.abspath(file_path)
         directory = os.path.split(abs_path)[0]
         try:
