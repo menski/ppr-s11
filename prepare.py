@@ -104,13 +104,6 @@ def main():
         print __doc__
         sys.exit(1)
 
-    pageurls = os.path.abspath(cfgparser.get("general", "page_urls"))
-    if not os.path.isfile(thumburls):
-        print >> sys.stderr, "ERROR: Unable to find file '%s'\n" % (
-                pageurls)
-        print __doc__
-        sys.exit(1)
-
     gz = cfgparser.getboolean("general", "gzip")
     if gz:
         openfunc = gzip.open

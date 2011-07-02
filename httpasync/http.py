@@ -149,13 +149,15 @@ class HTTPAsyncClient(asynchat.async_chat):
                     "No chunked encoding found. Set terminator to 'None'."))
         else:
             self._time = time.time() - self._time
-            self.process_response(self._header, self._data)
-            self._header = ""
-            self._path = ""
-            if self._connection:
-                self.close()
-            else:
-                self.next_path()
+            content_length = int(self._content_length.split(" ")[2])
+            if content_length < len(self._data):
+                self.process_response(self._header, self._data)
+                self._header = ""
+                self._path = ""
+                if self._connection:
+                    self.close()
+                else:
+                    self.next_path()
 
     def process_response(self, header, chunk):
         """Process a response header and received chunk."""
