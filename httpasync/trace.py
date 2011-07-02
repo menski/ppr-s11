@@ -333,9 +333,13 @@ class WikiFilter(TraceFilter):
         (path, ext) = os.path.splitext(tracefile)
         self._filterfile = "%s.%d-%d%s" % (path, interval[0], interval[1],
                 ext)
+        self._rewritefile = "%s.%d-%d.rewrite%s" % (path, interval[0],
+                interval[1], ext)
         self._filter = openfunc(self._filterfile, "wb")
+        self._rewrite = openfunc(self._rewritefile, "wb")
         TraceFilter.__init__(self, tracefile, regex, openfunc)
         self._filter.close()
+        self._rewrite.close()
 
     def get_filename(self):
         return self._filterfile
@@ -357,6 +361,8 @@ class WikiFilter(TraceFilter):
         if method != "-":
             return
 
+        self._filter.write(line + "\n")
+
         # write line in filtered tracefile
         url = re.sub("^http://en.wikipedia.org/wiki/", self._host + "/wiki/",
                 url)
@@ -367,7 +373,7 @@ class WikiFilter(TraceFilter):
 
         line = " ".join([nr, timestamp, url, method])
 
-        self._filter.write(line + "\n")
+        self._rewrite.write(line + "\n")
 
 
 class ImageClient(HTTPAsyncClient):

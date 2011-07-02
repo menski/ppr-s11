@@ -61,7 +61,7 @@ def main():
 
     # process options
     for o, a in opts:
-        if o in ("--help"):
+        if o == "--help":
             print __doc__
             sys.exit(0)
         elif o in ("-h", "--host"):
