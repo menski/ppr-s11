@@ -328,7 +328,7 @@ class WikiFilter(TraceFilter):
     """A filter for wikipedia traces from wikibench.eu."""
 
     def __init__(self, tracefile, host, interval, regex, openfunc=open):
-        self._host = host
+        self._host = "http://" + host
         self._interval = interval
         (path, ext) = os.path.splitext(tracefile)
         self._filterfile = "%s.%d-%d%s" % (path, interval[0], interval[1],
