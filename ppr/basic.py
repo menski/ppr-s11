@@ -14,6 +14,8 @@ import asyncore
 import socket
 import re
 import time
+import os
+import urllib
 
 
 class Process(multiprocessing.Process):
@@ -170,7 +172,7 @@ class HTTPAsyncClient(asynchat.async_chat):
                 request = self.get_request()
                 self.push(request)
                 self._time = time.time()
-                self._log.debug(self.logmsg("Send request: %s" %
+                self._log.info(self.logmsg("Send request: %s" %
                     request.replace("\r\n", "(CRLF)")))
         except Queue.Empty:
             self._log.debug(self.logmsg("Queue empty => close"))
@@ -202,7 +204,7 @@ class HTTPAsyncClient(asynchat.async_chat):
 
     def analyze_header(self):
         self._protocol, self._status, self._status_msg = self._header.split(
-                "\r\n")[0].split(" ")
+                "\r\n")[0].split(" ", 2)
         self._status = int(self._status)
         self._close = self.get_close()
         self._chunked = self.get_chunked()
@@ -306,3 +308,57 @@ class HTTPCrawler(Process):
         else:
             self._log.error("Unable to connect to %s:%d" %
                     (self._host, self._port))
+
+
+class FileClient(HTTPAsyncClient):
+
+    def __init__(self, host, queue, directory, port=80, channels=None):
+        HTTPAsyncClient.__init__(self, host, queue, port, channels)
+        self._dir = directory
+        self._error = set()
+
+    def process_response(self):
+        HTTPAsyncClient.process_response(self)
+        if self._status == 200:
+            file_path = re.sub(r'^/[\w-]+/[\w-]+/', '/', self._path)
+            file_path = self._dir + urllib.unquote(file_path)
+            file_path = os.path.abspath(file_path)
+            directory = os.path.split(file_path)[0]
+            try:
+                if not os.path.isdir(directory):
+                    os.makedirs(directory)
+                    self._log.info(self.logmsg("Create directory %s" %
+                        directory))
+                with open(file_path, "wb") as output:
+                    output.write(self._data)
+                self._log.info(self.logmsg("Write %s to %s" %
+                    (self._path, file_path)))
+            except Exception, e:
+                self._log.error(self.logmsg(e))
+        else:
+            self._error.add(self._host + self._path)
+
+    def error(self):
+        return self._error
+
+
+class FileCrawler(HTTPCrawler):
+
+    def __init__(self, host, queue, directory, port=80, async=10, retry=7):
+        HTTPCrawler.__init__(self, host, queue, port, async, retry)
+        self._dir = directory
+        self._error = set()
+
+    def create_client(self):
+        return FileClient(self._host, self._queue, self._dir, self._port,
+                self._channels)
+
+    def postprocess(self):
+        for client in self._clients:
+            self._error.update(client.error())
+        HTTPCrawler.postprocess(self)
+
+    def error(self):
+        return self._error()
+
+

@@ -403,7 +403,7 @@ class ImageClient(HTTPAsyncClient):
     def process_response(self, header, chunk):
         """Save image in file."""
         if self._status != "200":
-            self._not_found.add(self.hostself.host + self._path)
+            self._not_found.add(self._host + self._path)
             return
 
         HTTPAsyncClient.process_response(self, header, chunk)
