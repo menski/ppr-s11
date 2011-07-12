@@ -299,12 +299,15 @@ class HTTPCrawler(Process):
     def run(self):
         if self.test_connection():
             while not self._done:
-                self._channels.clear()
-                self._clients = [self.create_client() for i in 
+                if not self._queue.empty():
+                    self._channels.clear()
+                    self._clients = [self.create_client() for i in 
                         range(self._async)]
 
-                asyncore.loop(map=self._channels)
-                self.postprocess()
+                    asyncore.loop(map=self._channels)
+                    self.postprocess()
+                else:
+                    time.sleep(1)
         else:
             self._log.error("Unable to connect to %s:%d" %
                     (self._host, self._port))
@@ -360,5 +363,3 @@ class FileCrawler(HTTPCrawler):
 
     def error(self):
         return self._error()
-
-
