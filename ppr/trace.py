@@ -306,9 +306,19 @@ class WikiAnalyser(TraceAnalyser):
 class TraceFilter(Process):
     """A filter for traces."""
 
+    DONE = "###DONE###"
+
     def __init__(self, regex, queue=multiprocessing.Queue()):
         self._regex = re.compile(regex)
         self._queue = queue
+
+    def add(self, line):
+        """Add trace line to queue."""
+        self._queue.put(line)
+
+    def done(self):
+        """Add done message to queue."""
+        self._queue.put(TraceFilter.DONE)
 
     def run(self):
         """Run filter process."""
