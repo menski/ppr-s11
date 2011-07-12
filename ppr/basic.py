@@ -50,10 +50,11 @@ class Process(multiprocessing.Process):
 class FileReader(Process):
     """ Basic file reader process. """
 
-    def __init__(self, openfunc=open, processfunc=None):
+    def __init__(self, openfunc=open, processfunc=None, **kwargs):
         Process.__init__(self)
         self._openfunc = openfunc
         self._processfunc = processfunc
+        self._kwargs = kwargs
         self._filenames = []
 
     def read(self, filename):
@@ -71,7 +72,7 @@ class FileReader(Process):
                     input = self._openfunc(filename, "r")
                     try:
                         for line in input:
-                            self._processfunc(line.strip())
+                            self._processfunc(line.strip(), self._kwargs)
                     finally:
                         input.close()
                 except IOError, e:
