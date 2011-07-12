@@ -30,7 +30,7 @@ class Process(multiprocessing.Process):
 
     def create_log_handler(self, output, loglevel):
         formatter = logging.Formatter(
-            "%(asctime)s %(levelname)8s: %(processName)s %(threadName)s "
+            "%(asctime)s %(processName)s %(threadName)s %(levelname)8s: "
             "%(message)s", "%d.%m.%Y %H:%M:%S")
         handler = logging.StreamHandler(output)
         handler.setFormatter(formatter)
@@ -72,7 +72,8 @@ class FileReader(Process):
                     input = self._openfunc(filename, "r")
                     try:
                         for line in input:
-                            self._processfunc(line.strip(), self._kwargs)
+                            self._processfunc(line.strip(), self._log,
+                                    self._kwargs)
                     finally:
                         input.close()
                 except IOError, e:
@@ -147,7 +148,7 @@ class HTTPAsyncClient(asynchat.async_chat):
         self.send_request()
 
     def logmsg(self, msg):
-        return "FD: %3d %s" % (self.fileno(), msg)
+        return "[FD: %3d] %s" % (self.fileno(), msg)
 
     def get_request(self):
         return HTTPAsyncClient.HTTP_COMMAND % (self._path, self._host)
