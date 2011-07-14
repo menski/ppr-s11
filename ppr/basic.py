@@ -44,7 +44,7 @@ class FileReader(Process):
         self._filename = filename
         self._openfunc = openfunc
         self._pipes = pipes
-        self._log.debug("FileReader created for %s and %d pipes" %
+        self._log.debug("FileReader for %s created with %d pipes" %
                 (filename, len(pipes)))
 
     def read(self, line):
@@ -58,10 +58,9 @@ class FileReader(Process):
             input = self._openfunc(self._filename, "r")
             try:
                 for line in input:
-                    self.read(line)
+                    self.read(line.strip())
             finally:
                 input.close()
-                self._log.debug("FileReader finished for %s" % self._filename)
                 self._log.debug("Send done message to all pipes (%s)" %
                         PipeReader.DONE)
                 for pipe in self._pipes:
@@ -69,15 +68,16 @@ class FileReader(Process):
                     pipe.close()
         else:
             self._log.warning("No pipes given")
-        self._log.info("FileReader finished")
+        self._log.info("FileReader for %s finished" % self._filename)
 
 
 class PipeReader(Process):
     """Process that consumes data from a pipe."""
 
     DONE = "###DONE###"
+    DEFAULT_TIMEOUT = 1800
 
-    def __init__(self, timeout=100):
+    def __init__(self, timeout=DEFAULT_TIMEOUT):
         Process.__init__(self)
         (self._pipe, self.pipe) = multiprocessing.Pipe(duplex=False)
         self._timeout = timeout
@@ -100,18 +100,18 @@ class PipeReader(Process):
         self._pipe.close()
 
 
-
 class FileWriter(PipeReader):
     """ Basic file writer process. """
 
-    def __init__(self, filename, openfunc=open, timeout=100):
+    def __init__(self, filename, openfunc=open,
+            timeout=PipeReader.DEFAULT_TIMEOUT):
         PipeReader.__init__(self, timeout)
         self._filename = filename
         self._openfunc = openfunc
-        self._log.debug("FileWriter created for %s" % filename)
+        self._log.debug("FileWriter for %s created" % filename)
 
     def consume(self, line):
-        self._output.write(line+"/n")
+        self._output.write(line + "\n")
 
     def run(self):
         self._log.info("FileWriter for %s started" % self._filename)

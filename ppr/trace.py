@@ -5,7 +5,7 @@ E-Mail: sebastian.menski@googlemail.com'
 Description: Basic classes for trace handling.
 '''
 
-from basic import Process
+from basic import PipeReader, FileWriter, Process
 import multiprocessing
 import sys
 import subprocess
@@ -66,33 +66,21 @@ def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
         return gnuplot.wait()
 
 
-class TraceAnalyser(Process):
-    """Analyse a trace and output.write(some statitics"""
+class TraceAnalyser(PipeReader):
+    """Analyse a trace and output some statitics."""
 
-    DONE = "###DONE###"
-
-    def __init__(self, queue=multiprocessing.Queue(), plot=False, write=False):
-        Process.__init__(self)
-        self._queue = queue
-        self._plot = plot
-        self._write = write
+    def __init__(self, filename, timeout=PipeReader.DEFAULT_TIMEOUT):
+        PipeReader.__init__(self, timeout)
+        self._filename = filename
         self._gnuplot = gnuplot
-        self._done = False
         self.init()
+        self._log.debug("TraceAnalyser for %s created" % filename)
 
     def init(self):
         """Initialize the analyzier."""
         pass
 
-    def add(self, line):
-        """Add a trace line to queue."""
-        self._queue.put(line)
-
-    def done(self):
-        """Add done message to queue."""
-        self._queue.put(TraceAnalyser.DONE)
-
-    def analyse(self, line):
+    def consume(self, line):
         """Analyse a trace line."""
         pass
 
@@ -104,38 +92,32 @@ class TraceAnalyser(Process):
         """Plot statistics."""
         pass
 
-    def write(self):
-        """Write special files."""
-        pass
-
     def run(self):
         """Run analyse process."""
-        while not self._done or not self._queue.empty():
-            if not self._queue.empty:
-                line = self._queue.get()
-                if line == TraceAnalyser.DONE:
-                    self._done = True
-                else:
-                    self.analyse(line)
-            else:
-                time.sleep(1)
+        self._log.info("TraceAnalyser for %s started" % self._filename)
+        PipeReader.run(self)
         self.stats()
-        if self._plot:
-            self.plot()
-        if self._write:
-            self.write()
+        self.plot()
+        self._log.info("TraceAnalyser for %s finished" % self._filename)
 
 
 class WikiAnalyser(TraceAnalyser):
     """Analyse a wiki trace from wikibench.eu"""
 
-    HOST = re.compile(r'http://(([\w-]+\.)*\w+)/')
+    HOST_REGEX = r'http://(([\w-]+\.)*\w+)/'
+    HOST_PATTERN = re.compile(HOST_REGEX)
     UPLOAD_REGEX = r'http://upload.wikimedia.org/([\w\.]+/?)?'
-    UPLOAD = re.compile(UPLOAD_REGEX)
+    UPLOAD_PATTERN = re.compile(UPLOAD_REGEX)
     WIKIUPLOAD_REGEX = r'http://upload.wikimedia.org/wikipedia/([\w\.]+/?)?'
-    WIKIUPLOAD = re.compile(WIKIUPLOAD_REGEX)
-    THUMB = re.compile(r'|'.join([UPLOAD_REGEX + "thumb/",
-        WIKIUPLOAD_REGEX + "thumb/"]))
+    WIKIUPLOAD_PATTERN = re.compile(WIKIUPLOAD_REGEX)
+    THUMB_REGEX = r'|'.join([UPLOAD_REGEX + "thumb/",
+        WIKIUPLOAD_REGEX + "thumb/"])
+    THUMB_PATTERN = re.compile(THUMB_REGEX)
+
+    def __init__(self, filename, openfunc=open,
+            timeout=PipeReader.DEFAULT_TIMEOUT):
+        TraceAnalyser.__init__(self, filename, timeout)
+        self._openfunc = openfunc
 
     def init(self):
         """Initialize the analyser."""
@@ -146,10 +128,9 @@ class WikiAnalyser(TraceAnalyser):
         self._endtime = 0
         self._hosts = dict()
         self._uploads = dict()
-        self._pages = set()
-        self._images = set()
+        self._images_set = set()
         self._images_host = dict()
-        self._thumbs = set()
+        self._thumbs_set = set()
         self._thumbs_host = dict()
         self._methods = dict()
         self._rps = dict()
@@ -174,7 +155,7 @@ class WikiAnalyser(TraceAnalyser):
         output.write(sformat % ("sum", sum))
         output.write(sformat % ("uniq", uniq))
 
-    def analyse(self, line):
+    def consume(self, line):
         """Analyse a trace line."""
         self._lines += 1
 
@@ -194,19 +175,19 @@ class WikiAnalyser(TraceAnalyser):
             self._endtime = timestamp
 
         # parse host
-        m = WikiAnalyser.HOST.match(url)
+        m = WikiAnalyser.HOST_PATTERN.match(url)
         if m:
             self._requests += 1
             self.inc_dict(self._hosts, m.group(1))
 
             # test if it is an upload
-            m = WikiAnalyser.UPLOAD.match(url)
+            m = WikiAnalyser.UPLOAD_PATTERN.match(url)
             if m:
                 upload = m.group(1)
                 if upload is None:
                     upload = ""
                 if upload.lower() == "wikipedia/":
-                    lang = WikiAnalyser.WIKIUPLOAD.match(url)
+                    lang = WikiAnalyser.WIKIUPLOAD_PATTERN.match(url)
                     if lang:
                         if lang.group(1) is None:
                             lang = ""
@@ -215,14 +196,16 @@ class WikiAnalyser(TraceAnalyser):
                         upload = "".join(
                                 [upload.lower(), lang.lower()])
                 self.inc_dict(self._uploads, upload)
-                if WikiAnalyser.THUMB.match(url):
+                if WikiAnalyser.THUMB_PATTERN.match(url):
                     self.inc_dict(self._thumbs_host, upload)
-                    self._thumbs.add(url)
+                    self._thumbs.send(url)
+                    self._thumbs_set.add(url)
                 else:
                     self.inc_dict(self._images_host, upload)
-                    self._images.add(url)
+                    self._images.send(url)
+                    self._images_set.add(url)
             else:
-                self._pages.add(url)
+                self._pages.send(url)
 
             # increase method counter
             self.inc_dict(self._methods, method)
@@ -235,10 +218,10 @@ class WikiAnalyser(TraceAnalyser):
 
     def stats(self):
         """Write statistics."""
-        with open(self._tracefile + ".stats", "wb") as output:
+        with open(self._filename + ".stats", "w") as output:
             sformat = "%30s: %s\n"
             output.write("[GENERAL]\n")
-            output.write(sformat % ("tracefile", self._tracefile))
+            output.write(sformat % ("tracefile", self._filename))
             output.write(sformat % ("start time",
                 time.strftime("%a, %d %b %Y %H:%M:%S +0000",
                 time.gmtime(self._starttime))))
@@ -261,11 +244,11 @@ class WikiAnalyser(TraceAnalyser):
 
             output.write("\n[IMAGES]\n")
             self.print_dict(self._images_host, output)
-            output.write(sformat % ("files", len(self._images)))
+            output.write(sformat % ("files", len(self._images_set)))
 
             output.write("\n[THUMBS]\n")
             self.print_dict(self._thumbs_host, output)
-            output.write(sformat % ("files", len(self._thumbs)))
+            output.write(sformat % ("files", len(self._thumbs_set)))
 
             output.write("\n[METHODS]\n")
             self.print_dict(self._methods, output)
@@ -278,64 +261,68 @@ class WikiAnalyser(TraceAnalyser):
         """Plot statistics."""
         data = ["%d %d" % (int(second) - int(self._starttime), count)
                 for second, count in sorted(self._rps.items())]
-        title = os.path.splitext(os.path.basename(self._tracefile))[0]
-        gnuplot(title=title, data=data, filename=self._tracefile,
+        title = os.path.splitext(os.path.basename(self._filename))[0]
+        gnuplot(title=title, data=data, filename=self._filename,
                 ylabel="requests", xlabel="second", using="1:2",
                 styles=["points lt 3 pt 5 ps 0.75"])
 
-    def write(self):
-        """Write page, image and thumb list."""
-        (path, ext) = os.path.splitext(self._tracefile)
+    def run(self):
+        (path, ext) = os.path.splitext(self._filename)
         pagefile = ".page".join([path, ext])
         imagefile = ".image".join([path, ext])
         thumbfile = ".thumb".join([path, ext])
 
-        self.writefile(pagefile, self._pages)
-        self.writefile(imagefile, self._images)
-        self.writefile(thumbfile, self._thumbs)
+        pfr = FileWriter(pagefile, openfunc=self._openfunc,
+                timeout=self._timeout)
+        self._pages = pfr.pipe
+        pfr.start()
+        ifr = FileWriter(imagefile, openfunc=self._openfunc,
+                timeout=self._timeout)
+        self._images = ifr.pipe
+        ifr.start()
+        tfr = FileWriter(thumbfile, openfunc=self._openfunc,
+                timeout=self._timeout)
+        self._thumbs = tfr.pipe
+        tfr.start()
+        TraceAnalyser.run(self)
+        self._pages.send(PipeReader.DONE)
+        self._pages.close()
+        self._log.debug("Send done message to pages FileWriter (%s)" %
+                PipeReader.DONE)
+        self._images.send(PipeReader.DONE)
+        self._images.close()
+        self._log.debug("Send done message to images FileWriter (%s)" %
+                PipeReader.DONE)
+        self._thumbs.send(PipeReader.DONE)
+        self._thumbs.close()
+        self._log.debug("Send done message to thumbs FileWriter (%s)" %
+                PipeReader.DONE)
+        pfr.join()
+        ifr.join()
+        tfr.join()
 
-    def writefile(self, filename, content):
-        output = self._openfunc(filename, "wb")
-        try:
-            for url in content:
-                output.write(url + "\n")
-        finally:
-            output.close()
 
-
-class TraceFilter(Process):
+class TraceFilter(PipeReader):
     """A filter for traces."""
 
-    DONE = "###DONE###"
-
-    def __init__(self, regex, queue=multiprocessing.Queue()):
+    def __init__(self, filename, regex, analyse=False,
+            timeout=PipeReader.DEFAULT_TIMEOUT):
+        PipeReader.__init__(self, timeout)
+        self._filename = filename
         self._regex = re.compile(regex)
-        self._queue = queue
+        self._analyse = analyse
+        self._log.debug("Tracefilter for %s created" % filename)
 
-    def add(self, line):
-        """Add trace line to queue."""
-        self._queue.put(line)
-
-    def done(self):
-        """Add done message to queue."""
-        self._queue.put(TraceFilter.DONE)
-
-    def run(self):
-        """Run filter process."""
-        while not self._done or not self._queue.empty():
-            if not self._queue.empty():
-                line = self._queue.get()
-                if line == TraceFilter.DONE:
-                    self._done = True
-                else:
-                    self.filter(line)
-            else:
-                time.sleep(1)
-
-    def filter(self, line):
+    def consume(self, line):
         """Filter line from tracefile."""
         if self._regex.search(line):
             self.process(line)
+
+    def run(self):
+        """Run filter process."""
+        self._log.info("Tracefilter started")
+        PipeReader.run(self)
+        self._log.info("Tracefilter finished")
 
     def process(self, line):
         """Process filterd line from tracefile."""
@@ -345,25 +332,25 @@ class TraceFilter(Process):
 class WikiFilter(TraceFilter):
     """A filter for wikipedia traces from wikibench.eu."""
 
-    def __init__(self, tracefile, host, interval, regex, openfunc=open,
-            queue=multiprocessing.Queue()):
+    DEFAULT_REGEX = r'|'.join([r'http://en.wikipedia.org',
+    r'http://upload.wikimedia.org/wikipedia/commons/',
+    r'http://upload.wikimedia.org/wikipedia/en/'])
+
+    def __init__(self, filename, host, interval, regex=None, analyse=False,
+            openfunc=open, timeout=PipeReader.DEFAULT_TIMEOUT):
         self._host = "http://" + host
         self._interval = interval
-        (path, ext) = os.path.splitext(tracefile)
+        (path, ext) = os.path.splitext(filename)
         self._filterfile = "%s.%d-%d%s" % (path, interval[0], interval[1],
                 ext)
         self._rewritefile = "%s.%d-%d.rewrite%s" % (path, interval[0],
                 interval[1], ext)
-        self._filter = openfunc(self._filterfile, "wb")
-        self._rewrite = openfunc(self._rewritefile, "wb")
-        TraceFilter.__init__(self, tracefile, regex, openfunc)
-        self._filter.close()
-        self._rewrite.close()
+        self._openfunc = openfunc
+        if regex is None:
+            regex = WikiFilter.DEFAULT_REGEX
+        TraceFilter.__init__(self, filename, regex, analyse, timeout)
 
-    def get_filename(self):
-        return self._filterfile
-
-    def filter(self, line):
+    def consume(self, line):
         """Filter line from tracefile."""
         (nr, timestamp, url, method) = line.split(" ")
         timestamp = float(timestamp)
@@ -380,7 +367,9 @@ class WikiFilter(TraceFilter):
         if method != "-":
             return
 
-        self._filter.write(line + "\n")
+        self._filter.send(line)
+        if self._analyse:
+            self._analyser.send(line)
 
         # write line in filtered tracefile
         url = re.sub("^http://en.wikipedia.org/wiki/", self._host + "/wiki/",
@@ -392,4 +381,39 @@ class WikiFilter(TraceFilter):
 
         line = " ".join([nr, timestamp, url, method])
 
-        self._rewrite.write(line + "\n")
+        self._rewrite.send(line)
+
+    def run(self):
+        filterfw = FileWriter(self._filterfile, openfunc=self._openfunc,
+                timeout=self._timeout)
+        self._filter = filterfw.pipe
+        filterfw.start()
+        rewritefw = FileWriter(self._rewritefile, openfunc=self._openfunc,
+                timeout=self._timeout)
+        self._rewrite = rewritefw.pipe
+        rewritefw.start()
+
+        if self._analyse:
+            analyser = WikiAnalyser(self._filterfile, self._openfunc,
+                    self._timeout)
+            self._analyser = analyser.pipe
+            analyser.start()
+        TraceFilter.run(self)
+        self._filter.send(PipeReader.DONE)
+        self._filter.close()
+        self._log.debug("Send done message to filter FileWriter (%s)" %
+                PipeReader.DONE)
+        self._rewrite.send(PipeReader.DONE)
+        self._rewrite.close()
+        self._log.debug("Send done message to rewrite FileWriter (%s)" %
+                PipeReader.DONE)
+
+        if self._analyse:
+            self._analyser.send(PipeReader.DONE)
+            self._analyser.close()
+            self._log.debug("Send done message to filterd Analyser (%s)" %
+                PipeReader.DONE)
+            analyser.join()
+
+        filterfw.join()
+        rewritefw.join()
