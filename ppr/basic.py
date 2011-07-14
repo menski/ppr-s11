@@ -8,7 +8,6 @@ Description: Basic classes for project.
 import sys
 import logging
 import multiprocessing
-import Queue
 
 
 class Process(multiprocessing.Process):
@@ -36,79 +35,90 @@ class Process(multiprocessing.Process):
             self._log.setLevel(loglevel)
             self._log.debug("Set log level to: %d" % loglevel)
 
-    def run(self):
-        self._log.debug("Running")
-
 
 class FileReader(Process):
     """ Basic file reader process. """
 
-    def __init__(self, openfunc=open, processfunc=None, **kwargs):
-        Process.__init__(self)
-        self._openfunc = openfunc
-        self._processfunc = processfunc
-        self._kwargs = kwargs
-        self._filenames = []
-
-    def read(self, filename):
-        self._filenames.append(filename)
-
-    def run(self):
-        if self._processfunc is None:
-            self._log.error("No processing function given")
-            return
-
-        if self._filenames:
-            for filename in self._filenames:
-                try:
-                    self._log.debug("Read file %s" % filename)
-                    input = self._openfunc(filename, "r")
-                    try:
-                        for line in input:
-                            self._processfunc(line.strip(), self._log,
-                                    self._kwargs)
-                    finally:
-                        input.close()
-                except IOError, e:
-                    self._log.error(e)
-        else:
-            self._log.warning("No files given")
-
-
-class FileWriter(Process):
-    """ Basic file writer process. """
-
-    DONE = "###DONE###"
-
-    def __init__(self, filename, queue=multiprocessing.Queue(), openfunc=open):
+    def __init__(self, filename, openfunc=open, pipes=[]):
         Process.__init__(self)
         self._filename = filename
         self._openfunc = openfunc
-        self._queue = queue
-        self._done = False
+        self._pipes = pipes
+        self._log.debug("FileReader created for %s and %d pipes" %
+                (filename, len(pipes)))
 
-    def write(self, line):
-        self._queue.put(line + "\n")
-
-    def done(self):
-        self._queue.put(FileWriter.DONE)
+    def read(self, line):
+        for pipe in self._pipes:
+            pipe.send(line)
 
     def run(self):
-        try:
-            output = self._openfunc(self._filename, "w")
-            self._log.debug("Write file %s", self._filename)
+        self._log.info("FileReader for %s started" % self._filename)
+
+        if self._pipes:
+            input = self._openfunc(self._filename, "r")
             try:
-                while not self._done or not self._queue.empty():
-                    try:
-                        line = self._queue.get(timeout=1)
-                        if line == FileWriter.DONE:
-                            self._done = True
-                            self._log.debug("Found done message")
-                        else:
-                            output.write(line)
-                    except Queue.Empty:
-                        pass
+                for line in input:
+                    self.read(line)
             finally:
-                output.close()
-        except IOError, e:
-            self._log.error(e)
+                input.close()
+                self._log.debug("FileReader finished for %s" % self._filename)
+                self._log.debug("Send done message to all pipes (%s)" %
+                        PipeReader.DONE)
+                for pipe in self._pipes:
+                    pipe.send(PipeReader.DONE)
+                    pipe.close()
+        else:
+            self._log.warning("No pipes given")
+        self._log.info("FileReader finished")
+
+
+class PipeReader(Process):
+    """Process that consumes data from a pipe."""
+
+    DONE = "###DONE###"
+
+    def __init__(self, timeout=100):
+        Process.__init__(self)
+        (self._pipe, self.pipe) = multiprocessing.Pipe(duplex=False)
+        self._timeout = timeout
+
+    def consume(self, data):
+        pass
+
+    def run(self):
+        while True:
+            if self._pipe.poll(self._timeout):
+                data = self._pipe.recv()
+                if data == PipeReader.DONE:
+                    self._log.debug("Received done message (%s)" % data)
+                    break
+                else:
+                    self.consume(data)
+            else:
+                self._log.error("Timeout expired (Closing pipe)")
+                break
+        self._pipe.close()
+
+
+
+class FileWriter(PipeReader):
+    """ Basic file writer process. """
+
+    def __init__(self, filename, openfunc=open, timeout=100):
+        PipeReader.__init__(self, timeout)
+        self._filename = filename
+        self._openfunc = openfunc
+        self._log.debug("FileWriter created for %s" % filename)
+
+    def consume(self, line):
+        self._output.write(line+"/n")
+
+    def run(self):
+        self._log.info("FileWriter for %s started" % self._filename)
+        self._output = self._openfunc(self._filename, "w")
+        self._log.debug("Write file %s", self._filename)
+        try:
+            PipeReader.run(self)
+        finally:
+            self._output.close()
+        self._log.info("FileWriter for %s finished" % self._filename)
