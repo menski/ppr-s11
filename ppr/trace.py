@@ -285,18 +285,15 @@ class WikiAnalyser(TraceAnalyser):
         self._thumbs = tfr.pipe
         tfr.start()
         TraceAnalyser.run(self)
-        self._pages.send(PipeReader.DONE)
+        self._pages.send(None)
         self._pages.close()
-        self._log.debug("Send done message to pages FileWriter (%s)" %
-                PipeReader.DONE)
-        self._images.send(PipeReader.DONE)
+        self._log.debug("Send done message to pages FileWriter")
+        self._images.send(None)
         self._images.close()
-        self._log.debug("Send done message to images FileWriter (%s)" %
-                PipeReader.DONE)
-        self._thumbs.send(PipeReader.DONE)
+        self._log.debug("Send done message to images FileWriter")
+        self._thumbs.send(None)
         self._thumbs.close()
-        self._log.debug("Send done message to thumbs FileWriter (%s)" %
-                PipeReader.DONE)
+        self._log.debug("Send done message to thumbs FileWriter")
         pfr.join()
         ifr.join()
         tfr.join()
@@ -401,24 +398,17 @@ class WikiFilter(TraceFilter):
 
         TraceFilter.run(self)
 
-        if self._queue is not None:
-            self._queue.put(PipeReader.DONE)
-            self._queue.close()
-
-        self._filter.send(PipeReader.DONE)
+        self._filter.send(None)
         self._filter.close()
-        self._log.debug("Send done message to filter FileWriter (%s)" %
-                PipeReader.DONE)
-        self._rewrite.send(PipeReader.DONE)
+        self._log.debug("Send done message to filter FileWriter")
+        self._rewrite.send(None)
         self._rewrite.close()
-        self._log.debug("Send done message to rewrite FileWriter (%s)" %
-                PipeReader.DONE)
+        self._log.debug("Send done message to rewrite FileWriter")
 
         if self._analyse:
-            self._analyser.send(PipeReader.DONE)
+            self._analyser.send(None)
             self._analyser.close()
-            self._log.debug("Send done message to filterd Analyser (%s)" %
-                PipeReader.DONE)
+            self._log.debug("Send done message to filterd Analyser")
             analyser.join()
 
         filterfw.join()

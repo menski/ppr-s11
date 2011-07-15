@@ -59,9 +59,9 @@ class HTTPAsyncClient(asynchat.async_chat):
         self._chunked = True
         self._content_length = -1
 
-        if self._pipe.poll(1):
+        if self._pipe.poll():
             self._path = self._pipe.recv()
-            if self._path == PipeReader.DONE:
+            if self._path is None:
                 self._log.debug(self.logmsg("Done message found"))
                 self.close()
             else:
@@ -162,12 +162,12 @@ class HTTPCrawler(PipeReader):
     def postprocess(self):
         for client in self._clients:
             path = client.get_path()
-            if path:
-                if path == PipeReader.DONE:
-                    self._done = True
-                    self._log.debug("Done message found")
-                    break
-                else:
+            if path is None:
+                self._done = True
+                self._log.debug("Done message found")
+                break
+            else:
+                if path:
                     self.pipe.send(path)
 
     def test_connection(self):

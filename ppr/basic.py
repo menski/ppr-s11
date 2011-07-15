@@ -13,7 +13,9 @@ import multiprocessing
 class Process(multiprocessing.Process):
     """ Basic process class. """
 
-    def __init__(self, output=sys.stdout, loglevel=logging.WARNING):
+    DEFAULT_LOGLEVEL = logging.DEBUG
+
+    def __init__(self, output=sys.stdout, loglevel=DEFAULT_LOGLEVEL):
         multiprocessing.Process.__init__(self)
         self._log = multiprocessing.get_logger()
         if not self._log.handlers:
@@ -61,10 +63,9 @@ class FileReader(Process):
                     self.read(line.strip())
             finally:
                 input.close()
-                self._log.debug("Send done message to all pipes (%s)" %
-                        PipeReader.DONE)
+                self._log.debug("Send done message to all pipes")
                 for pipe in self._pipes:
-                    pipe.send(PipeReader.DONE)
+                    pipe.send(None)
                     pipe.close()
         else:
             self._log.warning("No pipes given")
@@ -74,7 +75,6 @@ class FileReader(Process):
 class PipeReader(Process):
     """Process that consumes data from a pipe."""
 
-    DONE = "###DONE###"
     DEFAULT_TIMEOUT = 1800
 
     def __init__(self, timeout=DEFAULT_TIMEOUT):
@@ -89,8 +89,8 @@ class PipeReader(Process):
         while True:
             if self._pipe.poll(self._timeout):
                 data = self._pipe.recv()
-                if data == PipeReader.DONE:
-                    self._log.debug("Received done message (%s)" % data)
+                if data is None:
+                    self._log.debug("Received done message")
                     break
                 else:
                     self.consume(data)
