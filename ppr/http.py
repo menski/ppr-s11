@@ -4,7 +4,7 @@ Author: Sebastian Menski
 E-Mail: sebastian.menski@googlemail.com'
 Description: Basic http classes for http requests.
 '''
-from basic import Process
+from basic import PipeReader
 import asynchat
 import asyncore
 import socket
@@ -27,11 +27,11 @@ class HTTPAsyncClient(asynchat.async_chat):
     PATTERN_CONTENT_LENGTH = re.compile(
             r'^Content-Length:[ ]*([0-9]+).*$', re.MULTILINE)
 
-    def __init__(self, host, queue, port=80, channels=None):
+    def __init__(self, host, pipe, port=80, channels=None):
         asynchat.async_chat.__init__(self, map=channels)
         self._log = multiprocessing.get_logger()
         self._host = host
-        self._queue = queue
+        self._pipe = pipe
         self._port = port
         self._time = 0
         self.set_terminator(HTTPAsyncClient.TERMINATOR)
@@ -59,9 +59,9 @@ class HTTPAsyncClient(asynchat.async_chat):
         self._chunked = True
         self._content_length = -1
 
-        try:
-            self._path = self._queue.get(timeout=1)
-            if self._path == HTTPCrawler.DONE:
+        if self._pipe.poll(1):
+            self._path = self._pipe.recv()
+            if self._path == PipeReader.DONE:
                 self._log.debug(self.logmsg("Done message found"))
                 self.close()
             else:
@@ -70,8 +70,8 @@ class HTTPAsyncClient(asynchat.async_chat):
                 self._time = time.time()
                 self._log.info(self.logmsg("Send request: %s" %
                     request.replace("\r\n", "(CRLF)")))
-        except Queue.Empty:
-            self._log.debug(self.logmsg("Queue empty => close"))
+        else:
+            self._log.debug("Close connection (no requests found)")
             self.close()
 
     def collect_incoming_data(self, data):
@@ -106,8 +106,8 @@ class HTTPAsyncClient(asynchat.async_chat):
         self._chunked = self.get_chunked()
         self._content_length = self.get_content_length()
         self._log.info(self.logmsg(
-            "Header received (Protocol: %s Status: %d %s Close: %s Chunk: %s "
-            "Content-Lenght: %d Time: %f) %s" % (self._protocol,
+            "Header received (Protocol: %s, Status: %d %s, Close: %s, Chunk: "
+            "%s, Content-Lenght: %d, Time: %f) %s" % (self._protocol,
                 self._status, self._status_msg, self._close, self._chunked,
                 self._content_length, self._htime, self._path)))
 
@@ -134,50 +134,41 @@ class HTTPAsyncClient(asynchat.async_chat):
 
     def process_response(self):
         self._log.info(self.logmsg(
-            "Response received (Protocol: %s Status: %d %s Length: %d, Time: "
-            "%f) %s" % (self._protocol, self._status, self._status_msg,
+            "Response received (Protocol: %s, Status: %d %s, Length: %d, "
+            "Time: %f) %s" % (self._protocol, self._status, self._status_msg,
             len(self._body), self._time, self._path)))
 
 
-class HTTPCrawler(Process):
+class HTTPCrawler(PipeReader):
     """docstring for HTTPCrawler"""
 
-    DONE = "###DONE###"
-
-    def __init__(self, host, queue=multiprocessing.Queue(), port=80, async=10,
-            retry=7):
-        Process.__init__(self)
+    def __init__(self, host, port=80, async=100, retry=7,
+            timeout=PipeReader.DEFAULT_TIMEOUT):
+        PipeReader.__init__(self, timeout)
         self._host = host
-        self._queue = queue
         self._port = port
         self._async = async
         self._retry = retry
         self._clients = []
-        self._channels = dict()
         self._done = False
+        self._channels = dict()
         self._log.debug("HTTPCrawler created for %s:%d with %d clients" %
                 (self._host, self._port, self._async))
 
     def create_client(self):
-        return HTTPAsyncClient(self._host, self._queue, self._port,
+        return HTTPAsyncClient(self._host, self._pipe, self._port,
                 self._channels)
-
-    def add(self, path):
-        self._queue.put(path)
-
-    def done(self):
-        self._queue.put(HTTPCrawler.DONE)
 
     def postprocess(self):
         for client in self._clients:
             path = client.get_path()
             if path:
-                if path == HTTPCrawler.DONE:
+                if path == PipeReader.DONE:
                     self._done = True
                     self._log.debug("Done message found")
                     break
                 else:
-                    self._queue.put(path)
+                    self.pipe.send(path)
 
     def test_connection(self):
         while self._retry > 0:
@@ -202,15 +193,19 @@ class HTTPCrawler(Process):
     def run(self):
         if self.test_connection():
             while not self._done:
-                if not self._queue.empty():
+                while self._pipe.poll(self._timeout):
                     self._channels.clear()
                     self._clients = [self.create_client() for i in
                         range(self._async)]
 
                     asyncore.loop(map=self._channels)
                     self.postprocess()
+                    if self._done:
+                        break
                 else:
-                    time.sleep(1)
+                    self._log.error("Poll timeout (close pipe)")
+                    self._done = True
+                    break
         else:
             self._log.error("Unable to connect to %s:%d" %
                     (self._host, self._port))
@@ -218,8 +213,8 @@ class HTTPCrawler(Process):
 
 class FileClient(HTTPAsyncClient):
 
-    def __init__(self, host, queue, directory, port=80, channels=None):
-        HTTPAsyncClient.__init__(self, host, queue, port, channels)
+    def __init__(self, host, pipe, directory, port=80, channels=None):
+        HTTPAsyncClient.__init__(self, host, pipe, port, channels)
         self._dir = directory
         self._error = set()
 
@@ -250,14 +245,14 @@ class FileClient(HTTPAsyncClient):
 
 class FileCrawler(HTTPCrawler):
 
-    def __init__(self, host, directory, queue=multiprocessing.Queue, port=80,
-            async=10, retry=7):
-        HTTPCrawler.__init__(self, host, queue, port, async, retry)
+    def __init__(self, host, directory, port=80,
+            async=25, retry=7, timeout=PipeReader.DEFAULT_TIMEOUT):
+        HTTPCrawler.__init__(self, host, port, async, retry, timeout)
         self._dir = directory
         self._error = set()
 
     def create_client(self):
-        return FileClient(self._host, self._queue, self._dir, self._port,
+        return FileClient(self._host, self._pipe, self._dir, self._port,
                 self._channels)
 
     def postprocess(self):

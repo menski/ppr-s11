@@ -13,7 +13,7 @@ import multiprocessing
 class Process(multiprocessing.Process):
     """ Basic process class. """
 
-    def __init__(self, output=sys.stdout, loglevel=logging.DEBUG):
+    def __init__(self, output=sys.stdout, loglevel=logging.WARNING):
         multiprocessing.Process.__init__(self)
         self._log = multiprocessing.get_logger()
         if not self._log.handlers:

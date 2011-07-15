@@ -398,7 +398,13 @@ class WikiFilter(TraceFilter):
                     self._timeout)
             self._analyser = analyser.pipe
             analyser.start()
+
         TraceFilter.run(self)
+
+        if self._queue is not None:
+            self._queue.put(PipeReader.DONE)
+            self._queue.close()
+
         self._filter.send(PipeReader.DONE)
         self._filter.close()
         self._log.debug("Send done message to filter FileWriter (%s)" %
