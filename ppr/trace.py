@@ -5,14 +5,14 @@ E-Mail: sebastian.menski@googlemail.com'
 Description: Basic classes for trace handling.
 '''
 
-from basic import PipeReader, FileWriter, Process
-import multiprocessing
+from basic import PipeReader, FileWriter
 import sys
 import subprocess
 import re
 import time
 import os.path
 from operator import itemgetter
+import urlparse
 
 
 def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
@@ -104,15 +104,15 @@ class TraceAnalyser(PipeReader):
 class WikiAnalyser(TraceAnalyser):
     """Analyse a wiki trace from wikibench.eu"""
 
-    HOST_REGEX = r'http://(([\w-]+\.)*\w+)/'
-    HOST_PATTERN = re.compile(HOST_REGEX)
-    UPLOAD_REGEX = r'http://upload.wikimedia.org/([\w\.]+/?)?'
-    UPLOAD_PATTERN = re.compile(UPLOAD_REGEX)
-    WIKIUPLOAD_REGEX = r'http://upload.wikimedia.org/wikipedia/([\w\.]+/?)?'
-    WIKIUPLOAD_PATTERN = re.compile(WIKIUPLOAD_REGEX)
-    THUMB_REGEX = r'|'.join([UPLOAD_REGEX + "thumb/",
-        WIKIUPLOAD_REGEX + "thumb/"])
-    THUMB_PATTERN = re.compile(THUMB_REGEX)
+#    HOST_REGEX = r'http://(([\w-]+\.)*\w+)/'
+#    HOST_PATTERN = re.compile(HOST_REGEX)
+#    UPLOAD_REGEX = r'http://upload.wikimedia.org/([\w\.]+/?)?'
+#    UPLOAD_PATTERN = re.compile(UPLOAD_REGEX)
+#    WIKIUPLOAD_REGEX = r'http://upload.wikimedia.org/wikipedia/([\w\.]+/?)?'
+#    WIKIUPLOAD_PATTERN = re.compile(WIKIUPLOAD_REGEX)
+#    THUMB_REGEX = r'|'.join([UPLOAD_REGEX + "thumb/",
+#        WIKIUPLOAD_REGEX + "thumb/"])
+#    THUMB_PATTERN = re.compile(THUMB_REGEX)
 
     def __init__(self, filename, openfunc=open,
             timeout=PipeReader.DEFAULT_TIMEOUT):
@@ -162,6 +162,9 @@ class WikiAnalyser(TraceAnalyser):
         # split line
         try:
             (nr, timestamp, url, method) = line.split(" ")
+            split = urlparse.urlsplit(url)
+            host = split.hostname
+            path = split.path
         except Exception, e:
             self._log.critical("ERROR: Unable to parse line %s (%s)" %
                     (line, e))
@@ -174,29 +177,23 @@ class WikiAnalyser(TraceAnalyser):
         if timestamp > self._endtime:
             self._endtime = timestamp
 
-        # parse host
-        m = WikiAnalyser.HOST_PATTERN.match(url)
-        if m:
+        # check host
+        if host:
             self._requests += 1
-            self.inc_dict(self._hosts, m.group(1))
+            self.inc_dict(self._hosts, host)
 
             # test if it is an upload
-            m = WikiAnalyser.UPLOAD_PATTERN.match(url)
-            if m:
-                upload = m.group(1)
-                if upload is None:
-                    upload = ""
-                if upload.lower() == "wikipedia/":
-                    lang = WikiAnalyser.WIKIUPLOAD_PATTERN.match(url)
-                    if lang:
-                        if lang.group(1) is None:
-                            lang = ""
-                        else:
-                            lang = lang.group(1)
-                        upload = "".join(
-                                [upload.lower(), lang.lower()])
+            if host == "upload.wikimedia.org":
+                upload = path.split("/", 2)[1]
+                if upload.lower() == "wikipedia":
+                    lang = ""
+                    try:
+                        lang = path.split("/", 3)[2]
+                    except:
+                        pass
+                    upload = "/".join([upload.lower(), lang.lower()])
                 self.inc_dict(self._uploads, upload)
-                if WikiAnalyser.THUMB_PATTERN.match(url):
+                if "thumb" in path.split("/"):
                     self.inc_dict(self._thumbs_host, upload)
                     self._thumbs.send(url)
                     self._thumbs_set.add(url)
