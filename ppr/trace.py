@@ -6,6 +6,7 @@ Description: Basic classes for trace handling.
 '''
 
 from basic import PipeReader, FileWriter
+from http import FileCrawler
 import sys
 import subprocess
 import re
@@ -13,6 +14,8 @@ import time
 import os.path
 from operator import itemgetter
 import urlparse
+import urllib
+import shutil
 
 
 def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
@@ -103,16 +106,6 @@ class TraceAnalyser(PipeReader):
 
 class WikiAnalyser(TraceAnalyser):
     """Analyse a wiki trace from wikibench.eu"""
-
-#    HOST_REGEX = r'http://(([\w-]+\.)*\w+)/'
-#    HOST_PATTERN = re.compile(HOST_REGEX)
-#    UPLOAD_REGEX = r'http://upload.wikimedia.org/([\w\.]+/?)?'
-#    UPLOAD_PATTERN = re.compile(UPLOAD_REGEX)
-#    WIKIUPLOAD_REGEX = r'http://upload.wikimedia.org/wikipedia/([\w\.]+/?)?'
-#    WIKIUPLOAD_PATTERN = re.compile(WIKIUPLOAD_REGEX)
-#    THUMB_REGEX = r'|'.join([UPLOAD_REGEX + "thumb/",
-#        WIKIUPLOAD_REGEX + "thumb/"])
-#    THUMB_PATTERN = re.compile(THUMB_REGEX)
 
     def __init__(self, filename, openfunc=open,
             timeout=PipeReader.DEFAULT_TIMEOUT):
@@ -410,3 +403,63 @@ class WikiFilter(TraceFilter):
 
         filterfw.join()
         rewritefw.join()
+
+
+class FileCollector(PipeReader):
+    """docstring for FileCollector"""
+
+    def __init__(self, download_dir, copy_dir, regex=WikiFilter.DEFAULT_REGEX,
+            port=80, async=25, retry=7, timeout=PipeReader.DEFAULT_TIMEOUT):
+        PipeReader.__init__(self)
+        self._download_dir = os.path.abspath(download_dir)
+        self._copy_dir = os.path.abspath(copy_dir)
+        self._downloads = []
+        self._regex = regex
+        self._port = port
+        self._async = async
+        self._retry = retry
+        self._crawler = dict()
+
+    def get_filename(self, url):
+        path = re.sub(self._regex, "", url)
+        return os.path.join(self._download_dir, path)
+
+    def copy_file(self, filename):
+        try:
+            target = filename.replace(self._download_dir, self._copy_dir)
+            dirname = os.path.dirname(target)
+            if not os.path.isdir(dirname):
+                os.makedirs(dirname)
+                self._log.info("Create directory %s" % dirname)
+            shutil.copy(filename, target)
+            self._log.info("Copy file %s to %s" % (filename, target))
+        except Exception, e:
+            self._log.error("Unable to copy file %s (%s)" % (filename, e))
+
+    def consume(self, url):
+        url = urllib.unquote(url)
+        filename = self.get_filename(url)
+        if os.path.isfile(filename):
+            self._log.info("File %s already exists at %s" % (url, filename))
+            self.copy_file(filename)
+        else:
+            split = urlparse.urlsplit(url)
+            host = split.hostname
+            path = split.path
+            if host not in self._crawler:
+                self._crawler[host] = FileCrawler(host, self._download_dir,
+                        self._port, self._async, self._retry, self._timeout)
+                self._crawler[host].start()
+            self._log.info("Send %s path to FileCrawler for host %s" %
+                    (path, host))
+            self._crawler[host].pipe.send(path)
+            self._downloads.append(filename)
+
+    def run(self):
+        PipeReader.run(self)
+        for crawler in self._crawler.values():
+            crawler.pipe.send(None)
+            crawler.join()
+        for filename in self._downloads:
+            if os.path.isfile(filename):
+                self.copy_file(filename)

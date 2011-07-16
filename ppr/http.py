@@ -13,6 +13,7 @@ import time
 import os
 import urllib
 import multiprocessing
+import os.path
 
 
 class HTTPAsyncClient(asynchat.async_chat):
@@ -250,7 +251,7 @@ class FileCrawler(HTTPCrawler):
     def __init__(self, host, directory, port=80,
             async=25, retry=7, timeout=PipeReader.DEFAULT_TIMEOUT):
         HTTPCrawler.__init__(self, host, port, async, retry, timeout)
-        self._dir = directory
+        self._dir = os.path.abspath(directory)
         self._error = set()
 
     def create_client(self):
