@@ -441,9 +441,9 @@ class FileCollector(PipeReader):
             dirname = os.path.dirname(target)
             if not os.path.isdir(dirname):
                 os.makedirs(dirname)
-                self._log.info("Create directory %s" % dirname)
+                self._log.debug("Create directory %s" % dirname)
             shutil.copy(filename, target)
-            self._log.info("Copy file %s to %s" % (filename, target))
+            self._log.debug("Copy file %s to %s" % (filename, target))
         except Exception, e:
             self._log.error("Unable to copy file %s (%s)" % (filename, e))
 
@@ -451,7 +451,7 @@ class FileCollector(PipeReader):
         url = urllib.unquote(url)
         filename = self.get_filename(url)
         if os.path.isfile(filename):
-            self._log.info("File %s already exists at %s" % (url, filename))
+            self._log.debug("File %s already exists at %s" % (url, filename))
             self.copy_file(filename)
         else:
             split = urlparse.urlsplit(url)
@@ -461,7 +461,7 @@ class FileCollector(PipeReader):
                 self._crawler[host] = FileCrawler(host, self._download_dir,
                         self._port, self._async, self._retry, self._timeout)
                 self._crawler[host].start()
-            self._log.info("Send %s path to FileCrawler for host %s" %
+            self._log.debug("Send %s path to FileCrawler for host %s" %
                     (path, host))
             self._crawler[host].pipe.send(path)
             self._downloads.append(filename)

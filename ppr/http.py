@@ -69,7 +69,7 @@ class HTTPAsyncClient(asynchat.async_chat):
                 request = self.get_request()
                 self.push(request)
                 self._time = time.time()
-                self._log.info(self.logmsg("Send request: %s" %
+                self._log.debug(self.logmsg("Send request: %s" %
                     request.replace("\r\n", "(CRLF)")))
         else:
             self._log.debug("Close connection (no requests found)")
@@ -106,7 +106,7 @@ class HTTPAsyncClient(asynchat.async_chat):
         self._close = self.get_close()
         self._chunked = self.get_chunked()
         self._content_length = self.get_content_length()
-        self._log.info(self.logmsg(
+        self._log.debug(self.logmsg(
             "Header received (Protocol: %s, Status: %d %s, Close: %s, Chunk: "
             "%s, Content-Lenght: %d, Time: %f) %s" % (self._protocol,
                 self._status, self._status_msg, self._close, self._chunked,
@@ -134,7 +134,7 @@ class HTTPAsyncClient(asynchat.async_chat):
         return self._path
 
     def process_response(self):
-        self._log.info(self.logmsg(
+        self._log.debug(self.logmsg(
             "Response received (Protocol: %s, Status: %d %s, Length: %d, "
             "Time: %f) %s" % (self._protocol, self._status, self._status_msg,
             len(self._body), self._time, self._path)))
@@ -229,11 +229,11 @@ class FileClient(HTTPAsyncClient):
             try:
                 if not os.path.isdir(directory):
                     os.makedirs(directory)
-                    self._log.info(self.logmsg("Create directory %s" %
+                    self._log.debug(self.logmsg("Create directory %s" %
                         directory))
                 with open(file_path, "wb") as output:
                     output.write(self._data)
-                self._log.info(self.logmsg("Write %s to %s" %
+                self._log.debug(self.logmsg("Write %s to %s" %
                     (self._path, file_path)))
             except Exception, e:
                 self._log.error(self.logmsg(e))
