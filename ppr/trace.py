@@ -72,7 +72,7 @@ def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
 class TraceAnalyser(PipeReader):
     """Analyse a trace and output some statitics."""
 
-    def __init__(self, filename, timeout=PipeReader.DEFAULT_TIMEOUT):
+    def __init__(self, filename, timeout=None):
         PipeReader.__init__(self, timeout)
         self._filename = filename
         self._gnuplot = gnuplot
@@ -107,8 +107,7 @@ class TraceAnalyser(PipeReader):
 class WikiAnalyser(TraceAnalyser):
     """Analyse a wiki trace from wikibench.eu"""
 
-    def __init__(self, filename, openfunc=open,
-            timeout=PipeReader.DEFAULT_TIMEOUT):
+    def __init__(self, filename, openfunc=open, timeout=None):
         TraceAnalyser.__init__(self, filename, timeout)
         self._openfunc = openfunc
 
@@ -138,15 +137,15 @@ class WikiAnalyser(TraceAnalyser):
     def print_dict(self, dictonary, output):
         sformat = "%30s: %8d\n"
         sum = 0
-        uniq = 0
+        count = 0
         for key, value in sorted(dictonary.items(), key=itemgetter(1),
             reverse=True):
             sum += value
-            uniq += 1
+            count += 1
             output.write(sformat % (key, value))
         output.write("%40s\n" % "----------")
         output.write(sformat % ("sum", sum))
-        output.write(sformat % ("uniq", uniq))
+        output.write(sformat % ("count", count))
 
     def consume(self, line):
         """Analyse a trace line."""
@@ -256,11 +255,15 @@ class WikiAnalyser(TraceAnalyser):
                 ylabel="requests", xlabel="second", using="1:2",
                 styles=["points lt 3 pt 5 ps 0.75"])
 
+    @staticmethod
+    def get_special_file(filename, special):
+        (path, ext) = os.path.splitext(filename)
+        return ("." + special).join([path, ext])
+
     def run(self):
-        (path, ext) = os.path.splitext(self._filename)
-        pagefile = ".page".join([path, ext])
-        imagefile = ".image".join([path, ext])
-        thumbfile = ".thumb".join([path, ext])
+        pagefile = WikiAnalyser.get_special_file(self._filename, "page")
+        imagefile = WikiAnalyser.get_special_file(self._filename, "image")
+        thumbfile = WikiAnalyser.get_special_file(self._filename, "thumb")
 
         pfr = FileWriter(pagefile, openfunc=self._openfunc,
                 timeout=self._timeout)
@@ -292,8 +295,7 @@ class WikiAnalyser(TraceAnalyser):
 class TraceFilter(PipeReader):
     """A filter for traces."""
 
-    def __init__(self, filename, regex, analyse=False,
-            timeout=PipeReader.DEFAULT_TIMEOUT):
+    def __init__(self, filename, regex, analyse=False, timeout=None):
         PipeReader.__init__(self, timeout)
         self._filename = filename
         self._regex = re.compile(regex)
@@ -324,18 +326,25 @@ class WikiFilter(TraceFilter):
     r'http://upload.wikimedia.org/wikipedia/en/'])
 
     def __init__(self, filename, host, interval, regex=None, analyse=False,
-            openfunc=open, timeout=PipeReader.DEFAULT_TIMEOUT):
+            openfunc=open, timeout=None):
         self._host = "http://" + host
         self._interval = interval
-        (path, ext) = os.path.splitext(filename)
-        self._filterfile = "%s.%d-%d%s" % (path, interval[0], interval[1],
-                ext)
-        self._rewritefile = "%s.%d-%d.rewrite%s" % (path, interval[0],
-                interval[1], ext)
+        self._filterfile = WikiFilter.get_filterfile(filename, interval)
+        self._rewritefile = WikiFilter.get_rewritefile(filename, interval)
         self._openfunc = openfunc
         if regex is None:
             regex = WikiFilter.DEFAULT_REGEX
         TraceFilter.__init__(self, filename, regex, analyse, timeout)
+
+    @staticmethod
+    def get_filterfile(filename, interval):
+        (path, ext) = os.path.splitext(filename)
+        return "%s.%d-%d%s" % (path, interval[0], interval[1], ext)
+
+    @staticmethod
+    def get_rewritefile(filename, interval):
+        (path, ext) = os.path.splitext(filename)
+        return "%s.%d-%d.rewrite%s" % (path, interval[0], interval[1], ext)
 
     def consume(self, line):
         """Filter line from tracefile."""
@@ -408,12 +417,14 @@ class WikiFilter(TraceFilter):
 class FileCollector(PipeReader):
     """docstring for FileCollector"""
 
-    def __init__(self, download_dir, copy_dir, regex=WikiFilter.DEFAULT_REGEX,
-            port=80, async=25, retry=7, timeout=PipeReader.DEFAULT_TIMEOUT):
-        PipeReader.__init__(self)
+    def __init__(self, download_dir, copy_dir, regex=None, port=80, async=25,
+            retry=7, timeout=None):
+        PipeReader.__init__(self, timeout)
         self._download_dir = os.path.abspath(download_dir)
         self._copy_dir = os.path.abspath(copy_dir)
         self._downloads = []
+        if regex is None:
+            regex = WikiAnalyser.DEFAULT_REGEX
         self._regex = regex
         self._port = port
         self._async = async
@@ -459,6 +470,7 @@ class FileCollector(PipeReader):
         PipeReader.run(self)
         for crawler in self._crawler.values():
             crawler.pipe.send(None)
+        for crawler in self._crawler.values():
             crawler.join()
         for filename in self._downloads:
             if os.path.isfile(filename):

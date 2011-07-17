@@ -15,8 +15,10 @@ class Process(multiprocessing.Process):
 
     DEFAULT_LOGLEVEL = logging.DEBUG
 
-    def __init__(self, output=sys.stdout, loglevel=DEFAULT_LOGLEVEL):
+    def __init__(self, output=sys.stdout, loglevel=None):
         multiprocessing.Process.__init__(self)
+        if loglevel is None:
+            loglevel = Process.DEFAULT_LOGLEVEL
         self._log = multiprocessing.get_logger()
         if not self._log.handlers:
             self.create_log_handler(output, loglevel)
@@ -77,8 +79,10 @@ class PipeReader(Process):
 
     DEFAULT_TIMEOUT = 1800
 
-    def __init__(self, timeout=DEFAULT_TIMEOUT):
+    def __init__(self, timeout=None):
         Process.__init__(self)
+        if timeout is None:
+            timeout = PipeReader.DEFAULT_TIMEOUT
         (self._pipe, self.pipe) = multiprocessing.Pipe(duplex=False)
         self._timeout = timeout
 
@@ -103,8 +107,7 @@ class PipeReader(Process):
 class FileWriter(PipeReader):
     """ Basic file writer process. """
 
-    def __init__(self, filename, openfunc=open,
-            timeout=PipeReader.DEFAULT_TIMEOUT):
+    def __init__(self, filename, openfunc=open, timeout=None):
         PipeReader.__init__(self, timeout)
         self._filename = filename
         self._openfunc = openfunc

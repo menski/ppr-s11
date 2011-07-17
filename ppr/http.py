@@ -143,8 +143,7 @@ class HTTPAsyncClient(asynchat.async_chat):
 class HTTPCrawler(PipeReader):
     """docstring for HTTPCrawler"""
 
-    def __init__(self, host, port=80, async=100, retry=7,
-            timeout=PipeReader.DEFAULT_TIMEOUT):
+    def __init__(self, host, port=80, async=100, retry=7, timeout=None):
         PipeReader.__init__(self, timeout)
         self._host = host
         self._port = port
@@ -198,7 +197,7 @@ class HTTPCrawler(PipeReader):
                     self._channels.clear()
                     while self._pipe.poll() and (
                             len(self._clients) < self._async):
-                                self._clients.append(self.create_client())
+                        self._clients.append(self.create_client())
 
                     asyncore.loop(map=self._channels)
                     self.postprocess()
@@ -247,8 +246,8 @@ class FileClient(HTTPAsyncClient):
 
 class FileCrawler(HTTPCrawler):
 
-    def __init__(self, host, directory, port=80,
-            async=25, retry=7, timeout=PipeReader.DEFAULT_TIMEOUT):
+    def __init__(self, host, directory, port=80, async=25, retry=7,
+            timeout=None):
         HTTPCrawler.__init__(self, host, port, async, retry, timeout)
         self._dir = os.path.abspath(directory)
         self._error = set()

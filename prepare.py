@@ -67,7 +67,6 @@ def main():
                 print >> sys.stderr, "Thread count must be a number"
                 sys.exit(2)
 
-
     if not os.path.isfile(config):
         print >> sys.stderr, "ERROR: Unable to find config file '%s'\n" % (
                 args.config)
@@ -164,6 +163,7 @@ def process_paths(paths, imgdir, wiki_imgdir, threads=2):
             stat += "\n" + url
         log.debug(stat)
         copy_files(paths[host][1], imgdir, wiki_imgdir)
+
 
 def copy_files(paths, imgdir, wiki_imgdir):
     for img_path in paths:
