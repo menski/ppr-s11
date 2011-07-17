@@ -29,8 +29,6 @@ class HTTPAsyncClient(asynchat.async_chat):
             r'^Content-Length:[ ]*([0-9]+).*$', re.MULTILINE)
 
     def __init__(self, host, pipe, port=80, channels=None):
-        if not pipe.poll():
-            return
         asynchat.async_chat.__init__(self, map=channels)
         self._log = multiprocessing.get_logger()
         self._host = host
@@ -198,8 +196,9 @@ class HTTPCrawler(PipeReader):
             while not self._done:
                 while self._pipe.poll(self._timeout):
                     self._channels.clear()
-                    self._clients = [self.create_client() for i in
-                        range(self._async)]
+                    while self._pipe.poll() and (
+                            len(self._clients) < self._async):
+                                self._clients.append(self.create_client())
 
                     asyncore.loop(map=self._channels)
                     self.postprocess()
