@@ -16,12 +16,11 @@ import os.path
 import ConfigParser
 import gzip
 import logging
-import subprocess
-import shlex
 import multiprocessing
 import tarfile
 from ppr.basic import Process, FileReader
 from ppr.trace import WikiAnalyser, WikiFilter, FileCollector
+from ppr.server import execute, stop_service, start_service, scp_files
 
 
 def print_error(msg, hint=""):
@@ -45,6 +44,19 @@ def get_config(config, config_func, section, option, hint="", default=None):
 def get_config_path(config, section, option, hint="", default=None):
     return os.path.realpath(get_config(config, config.get, section, option,
         hint, default))
+
+
+def split_server(s):
+    if not s:
+        return dict()
+    try:
+        result = dict()
+        for c in s.split(":"):
+            (config, ips) = c.split("@")
+            result[config] = ips.split(":")
+        return result
+    except:
+        print_error("Unable to parse 'server' option in 'download' section")
 
 
 def read_config(config_filename):
@@ -100,7 +112,7 @@ def read_config(config_filename):
         else:
             config["filter_openfunc"] = open
 
-    if config["download"]:
+    if config["download"] or config["install"]:
         # download
         config["download_dir"] = get_config(config_file, config_file.get,
                 "download", "download_dir", "directory to download images")
@@ -135,62 +147,39 @@ def read_config(config_filename):
         config["download_mysql_archive"] = get_config_path(config_file,
                 "download", "mysql_archive", default="")
 
+        config["download_output_dir"] = get_config_path(config_file,
+                "download", "output_dir", "directory to save packed "
+                "web content and mysql database")
+
+
+    if config["install"]:
+        config["install_server"] = split_server(get_config(config_file,
+                config_file.get, "install", "server", default=""))
+
+        config["install_server_config"] = dict()
+        for sconfig in config["install_server"]:
+            # server config
+            cfg = dict()
+            cfg["user"] = get_config(config_file, config_file.get, sconfig,
+                    "user", "user account")
+            cfg["wiki_dir"] = get_config(config_file, config_file.get, sconfig,
+                    "wiki_dir", default="None")
+            cfg["mysqld"] = get_config(config_file, config_file.get, sconfig,
+                    "mysqld", default="mysqld")
+            cfg["mysql_dir"] = get_config(config_file, config_file.get,
+                    sconfig, "mysql_dir", default="None")
+            config["install_server_config"][sconfig] = cfg
+
     return config
-
-
-def execute(cmd, pipe=True):
-    args = shlex.split(cmd)
-    if pipe:
-        p = subprocess.Popen(args, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE)
-        output = p.communicate()
-        return p.returncode, output
-    else:
-        p = subprocess.Popen(args)
-        p.wait()
-        return p.returncode
-
-
-def stop_mysql(log, service):
-    log.info("Check status of %s service" % service)
-    cmd = "service %s status" % service
-    rc, output = execute(cmd)
-    if rc != 0:
-        log.error("Unknown service " + service)
-        sys.exit(2)
-    if "start" in output[0]:
-        log.info("Stop %s service" % service)
-        cmd = "service %s stop" % service
-        rc, output = execute(cmd)
-        if rc != 0:
-            log.error("Unable to stop %s service" % service)
-            sys.exit(2)
-        log.info("Service %s stopped" % service)
-    else:
-        log.info("Service %s already stopped" % service)
-
-
-def start_mysql(log, service):
-    log.info("Start %s service" % service)
-    cmd = "service %s start" % service
-    rc, output = execute(cmd)
-    if rc != 0:
-        log.error("Unable to start service " + service)
-        sys.exit(2)
-    else:
-        cmd = "service %s status" % service
-        rc, output = execute(cmd)
-        if "start" in output[0]:
-            log.info("Service %s successful started" % service)
-        else:
-            log.error("Unknown error during start of %s service" %
-                    service)
-            sys.exit(2)
 
 
 def main(config):
 
     log = multiprocessing.get_logger()
+    # hack for logging
+    if not config["analyse"] and not config["filter"] \
+        and not config["download"]:
+        Process()
 
     # analyse and filter
     Process.DEFAULT_LOGLEVEL = logging.getLevelName(config["logging"])
@@ -224,6 +213,10 @@ def main(config):
         filter.join()
 
     # download and install
+
+    output_dir = config["download_output_dir"]
+    mysql_pack = os.path.join(output_dir, "mysql.tar.bz")
+    image_pack = os.path.join(output_dir, "image.tar")
 
     if config["download"]:
         filterfile = WikiFilter.get_filterfile(config["trace_file"],
@@ -266,62 +259,86 @@ def main(config):
         image_collector.join()
         thumb_collector.join()
 
-        if config["download_clean_mysql"]:
-            if not os.path.isdir(config["download_mysql_dir"]):
-                log.error("Unable to find mysql dir " +
-                        config["download_mysql_dir"])
-                sys.exit(2)
+        service = config["download_mysqld"]
+        mysql_dir = config["download_mysql_dir"]
 
-            if not os.path.isfile(config["download_mysql_archive"]):
+        if not os.path.isdir(mysql_dir):
+            log.error("Unable to find mysql dir " +
+                    config["download_mysql_dir"])
+            sys.exit(2)
+
+        if config["download_clean_mysql"]:
+            archive = config["download_mysql_archive"]
+
+            if not os.path.isfile(archive):
                 log.error("Unable to find mysql clean archive " +
                         config["download_mysql_archive"])
                 sys.exit(2)
 
-            service = config["download_mysqld"]
-
-            stop_mysql(log, service)
-
-            mysql_dir = config["download_mysql_dir"]
-            archive = config["download_mysql_archive"]
-
+            stop_service(log, service)
             log.info("Unpack clean mysql db %s to %s" % (archive, mysql_dir))
             tar = tarfile.open(archive)
             tar.extractall(path=mysql_dir)
             tar.close()
             log.info("Clean mysql db successful unpacked")
 
-            start_mysql(log, service)
+            start_service(log, service)
 
-            script = os.path.join(config["download_wiki_dir"],
-                    "maintenance/rebuildImages.php")
-            if not os.path.isfile(script):
-                log.error("Unable to find wiki script " + script)
-                sys.exit(2)
+        script = os.path.join(config["download_wiki_dir"],
+                "maintenance/rebuildImages.php")
+        if not os.path.isfile(script):
+            log.error("Unable to find wiki script " + script)
+            sys.exit(2)
 
-            log.info("Import images to database")
-            cmd = " ".join(["php", script, "--missing"])
-            rc, output = execute(cmd)
-            if output[0]:
-                log.debug("\n" + output[0])
-            if output[1]:
-                log.error("\n" + output[1])
+        start_service(log, service)
 
-            mysql_pack = "mysql.tar.bz"
-            log.info("Pack mysql db to %s" % mysql_pack)
-            stop_mysql(log, service)
-            tar = tarfile.open(mysql_pack, "w:bz2")
-            for f in os.listdir(mysql_dir):
-                tar.add(os.path.join(mysql_dir, f), arcname=f)
-            tar.close()
-            start_mysql(log, service)
+        log.info("Import images to database")
+        cmd = " ".join(["php", script, "--missing"])
+        rc, output = execute(cmd)
+        if output[0]:
+            log.debug("\n" + output[0])
+        if output[1]:
+            log.error("\n" + output[1])
 
-            image_pack = "image.tar"
-            log.info("Pack images to %s" % image_pack)
-            tar = tarfile.open(image_pack, "w")
-            for f in os.listdir(config["download_wiki_images"]):
-                tar.add(os.path.join(config["download_wiki_images"], f),
-                        arcname=f)
-            tar.close()
+        if not os.path.isdir(output_dir):
+            log.info("Create output directory %s", output_dir)
+            os.makedirs(output_dir)
+
+        log.info("Pack mysql db to %s" % mysql_pack)
+        stop_service(log, service)
+        tar = tarfile.open(mysql_pack, "w:bz2")
+        for f in os.listdir(mysql_dir):
+            tar.add(os.path.join(mysql_dir, f), arcname=f)
+        tar.close()
+        start_service(log, service)
+
+        log.info("Pack images to %s" % image_pack)
+        tar = tarfile.open(image_pack, "w")
+        for f in os.listdir(config["download_wiki_images"]):
+            tar.add(os.path.join(config["download_wiki_images"], f), arcname=f)
+        tar.close()
+
+    if config["install"]:
+        server = config["install_server"]
+        sconfig = config["install_server_config"]
+
+        script = os.path.realpath("ppr/server.py")
+
+        for cfg in server:
+            for host in server[cfg]:
+                c = sconfig[cfg]
+                user = c["user"]
+                files = [mysql_pack, image_pack, script]
+                vars = dict()
+                vars["script"] = os.path.split(script)[1]
+                vars["mysqld"] = c["mysqld"]
+                vars["images"] = os.path.split(image_pack)[1]
+                vars["db"] = os.path.split(mysql_pack)[1]
+                vars["wiki"] = c["wiki_dir"]
+                vars["mysql"] = c["mysql_dir"]
+                exe = ["python %(script)s -m %(mysqld)s -i %(images)s -d "
+                        "%(db)s -w %(wiki)s -q %(mysql)s" % vars]
+                scp_files(host, user, files, exe, log)
 
 
 if __name__ == '__main__':
@@ -334,3 +351,4 @@ if __name__ == '__main__':
         print_error("Unable to find config file", __doc__)
 
     main(read_config(config_filename))
+    sys.exit(0)
