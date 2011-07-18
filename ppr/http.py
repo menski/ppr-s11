@@ -166,8 +166,7 @@ class HTTPCrawler(PipeReader):
                 self._done = True
                 self._log.debug("Done message found")
                 break
-            else:
-                if path:
+            elif path:
                     self.pipe.send(path)
 
     def test_connection(self):
@@ -195,6 +194,7 @@ class HTTPCrawler(PipeReader):
             while not self._done:
                 while self._pipe.poll(self._timeout):
                     self._channels.clear()
+                    del self._clients[:]
                     while self._pipe.poll() and (
                             len(self._clients) < self._async):
                         self._clients.append(self.create_client())
