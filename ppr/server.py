@@ -36,7 +36,7 @@ def stop_service(log, service):
     log.info("Check status of %s service" % service)
     cmd = "service %s status" % service
     rc, output = execute(cmd)
-    if rc != 0:
+    if rc == 1:
         log.error("Unknown service " + service)
         sys.exit(2)
     if re.compile(r'|'.join(["start", "process", "PID"])).search(output[0]):

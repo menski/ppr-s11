@@ -12,15 +12,14 @@ Usage:
 import sys
 import os
 import shutil
-import os.path
 import ConfigParser
 import gzip
 import logging
 import multiprocessing
 import tarfile
-from ppr.basic import Process, FileReader
+from ppr.basic import Process, FileReader, SyncClient
 from ppr.trace import WikiAnalyser, WikiFilter, FileCollector
-from ppr.server import execute, stop_service, start_service, scp_files
+from ppr.server import execute, stop_service, start_service
 
 
 def print_error(msg, hint=""):
@@ -53,7 +52,7 @@ def split_server(s):
         result = dict()
         for c in s.split(":"):
             (config, ips) = c.split("@")
-            result[config] = ips.split(":")
+            result[config] = ips.split(",")
         return result
     except:
         print_error("Unable to parse 'server' option in 'download' section")
@@ -323,22 +322,17 @@ def main(config):
         sconfig = config["install_server_config"]
 
         script = os.path.realpath("ppr/server.py")
+        sync = []
 
         for cfg in server:
             for host in server[cfg]:
-                c = sconfig[cfg]
-                user = c["user"]
-                files = [mysql_pack, image_pack, script]
-                vars = dict()
-                vars["script"] = os.path.split(script)[1]
-                vars["mysqld"] = c["mysqld"]
-                vars["images"] = os.path.split(image_pack)[1]
-                vars["db"] = os.path.split(mysql_pack)[1]
-                vars["wiki"] = c["wiki_dir"]
-                vars["mysql"] = c["mysql_dir"]
-                exe = ["python %(script)s -m %(mysqld)s -i %(images)s -d "
-                        "%(db)s -w %(wiki)s -q %(mysql)s" % vars]
-                scp_files(host, user, files, exe, log)
+                s = SyncClient(host, sconfig[cfg], image_pack, mysql_pack,
+                        script)
+                s.start()
+                sync.append(s)
+
+        for s in sync:
+            s.join()
 
 
 if __name__ == '__main__':
