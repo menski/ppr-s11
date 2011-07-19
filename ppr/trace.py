@@ -451,8 +451,7 @@ class FileCollector(PipeReader):
             self._log.error("Unable to copy file %s (%s)" % (filename, e))
 
     def consume(self, url):
-        url = urllib.unquote(url)
-        filename = self.get_filename(url)
+        filename = self.get_filename(urllib.unquote(url))
         if os.path.isfile(filename):
             self._log.debug("File %s already exists at %s" % (url, filename))
             self.copy_file(filename)
