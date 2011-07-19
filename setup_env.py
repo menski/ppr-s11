@@ -246,7 +246,7 @@ def main(config):
     if config["filter"]:
         filter = WikiFilter(trace_file, config["filter_host"],
                 config["filter_interval"], config["filter_regex"],
-                True, config["filter_openfunc"])
+                True, config["filter_openfunc"], config["plot"])
         filter.start()
         reader_pipes.append(filter.pipe)
 
