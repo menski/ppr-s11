@@ -158,7 +158,6 @@ def read_config(config_filename):
                 "download", "output_dir", "Directory to save packed images "
                 "and database for exchange")
 
-
     if config["install"]:
         config["install_server"] = split_server(get_config(config_file,
                 config_file.get, "install", "server", default=""))
@@ -184,46 +183,26 @@ def main(config):
 
     log = multiprocessing.get_logger()
 
-    # analyse and filter
     Process.DEFAULT_LOGLEVEL = logging.getLevelName(config["logging"])
 
-    if config["analyse"] or config["filter"]:
-        if not os.path.isfile(config["trace_file"]):
-            print_error("Unable to find tracefile " + config["trace_file"])
+    # test required values
+    if config["analyse"] or config["filter"] or config["download"]:
+        trace_file = config["trace_file"]
+        if not os.path.isfile(trace_file):
+            print_error("Unable to find tracefile " + trace_file)
 
-    reader_pipes = []
-    if config["analyse"]:
-        analyser = WikiAnalyser(config["trace_file"], config["trace_openfunc"],
-                config["plot"])
-        analyser.start()
-        reader_pipes.append(analyser.pipe)
-
-    if config["filter"]:
-        filter = WikiFilter(config["trace_file"], config["filter_host"],
-                config["filter_interval"], config["filter_regex"],
-                True, config["filter_openfunc"])
-        filter.start()
-        reader_pipes.append(filter.pipe)
-
-    if reader_pipes:
-        reader = FileReader(config["trace_file"], config["trace_openfunc"],
-                reader_pipes)
-        reader.start()
-        reader.join()
-
-    if config["analyse"]:
-        analyser.join()
-    if config["filter"]:
-        filter.join()
-
-    # download and install
     if config["download"] or config["install"]:
         output_dir = config["download_output_dir"]
         mysql_pack = os.path.join(output_dir, "mysql.tar.bz")
         image_pack = os.path.join(output_dir, "image.tar")
+        if not config["download"]:
+            if not os.path.isfile(mysql_pack):
+                print_error("Unable to find packed database " + mysql_pack)
+            if not os.path.isfile(image_pack):
+                print_error("Unable to find packed images " + image_pack)
 
     if config["download"]:
-        filterfile = WikiFilter.get_filterfile(config["trace_file"],
+        filterfile = WikiFilter.get_filterfile(trace_file,
                 config["filter_interval"])
         (path, ext) = os.path.splitext(filterfile)
         imagefile = WikiAnalyser.get_special_file(filterfile, "image")
@@ -239,6 +218,51 @@ def main(config):
             print_error("Unable to find wiki images dir " +
                     config["download_wiki_images"])
 
+        mysql_dir = config["download_mysql_dir"]
+        if not os.path.isdir(mysql_dir):
+            print_error("Unable to find mysql dir " +
+                    config["download_mysql_dir"])
+
+        script = os.path.join(config["download_wiki_dir"],
+                "maintenance/rebuildImages.php")
+        if not os.path.isfile(script):
+            print_error("Unable to find wiki script " + script)
+
+        if config["download_clean_mysql"]:
+            archive = config["download_mysql_archive"]
+
+            if not os.path.isfile(archive):
+                print_error("Unable to find mysql clean archive " +
+                        config["download_mysql_archive"])
+
+    # analyse and filter
+    reader_pipes = []
+    if config["analyse"]:
+        analyser = WikiAnalyser(trace_file, config["trace_openfunc"],
+                config["plot"])
+        analyser.start()
+        reader_pipes.append(analyser.pipe)
+
+    if config["filter"]:
+        filter = WikiFilter(trace_file, config["filter_host"],
+                config["filter_interval"], config["filter_regex"],
+                True, config["filter_openfunc"])
+        filter.start()
+        reader_pipes.append(filter.pipe)
+
+    if reader_pipes:
+        reader = FileReader(trace_file, config["trace_openfunc"],
+                reader_pipes)
+        reader.start()
+        reader.join()
+
+    if config["analyse"]:
+        analyser.join()
+    if config["filter"]:
+        filter.join()
+
+    # download
+    if config["download"]:
         if config["download_clean_images"]:
             shutil.rmtree(config["download_wiki_images"])
             os.makedirs(config["download_wiki_images"])
@@ -264,35 +288,15 @@ def main(config):
         thumb_collector.join()
 
         service = config["download_mysqld"]
-        mysql_dir = config["download_mysql_dir"]
-
-        if not os.path.isdir(mysql_dir):
-            log.error("Unable to find mysql dir " +
-                    config["download_mysql_dir"])
-            sys.exit(2)
 
         if config["download_clean_mysql"]:
-            archive = config["download_mysql_archive"]
-
-            if not os.path.isfile(archive):
-                log.error("Unable to find mysql clean archive " +
-                        config["download_mysql_archive"])
-                sys.exit(2)
-
             stop_service(log, service)
+
             log.info("Unpack clean mysql db %s to %s" % (archive, mysql_dir))
             tar = tarfile.open(archive)
             tar.extractall(path=mysql_dir)
             tar.close()
             log.info("Clean mysql db successful unpacked")
-
-            start_service(log, service)
-
-        script = os.path.join(config["download_wiki_dir"],
-                "maintenance/rebuildImages.php")
-        if not os.path.isfile(script):
-            log.error("Unable to find wiki script " + script)
-            sys.exit(2)
 
         start_service(log, service)
 
@@ -322,6 +326,7 @@ def main(config):
             tar.add(os.path.join(config["download_wiki_images"], f), arcname=f)
         tar.close()
 
+    # install
     if config["install"]:
         server = config["install_server"]
         sconfig = config["install_server_config"]
