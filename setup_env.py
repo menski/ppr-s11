@@ -65,23 +65,25 @@ def read_config(config_filename):
 
     # general
     config["analyse"] = get_config(config_file, config_file.getboolean,
-            "general", "analyse", "analyse traces?")
+            "general", "analyse", "Analyse trace file and write statistics")
     config["filter"] = get_config(config_file, config_file.getboolean,
-            "general", "filter", "filter traces?")
+            "general", "filter",
+            "Filter trace file and analyse filtered trace file")
     config["download"] = get_config(config_file, config_file.getboolean,
-            "general", "download", "download images?")
+            "general", "download",
+            "Download images and thumbs from filtered trace file")
     config["install"] = get_config(config_file, config_file.getboolean,
-            "general", "install", "install mediawiki on other maschines?")
+            "general", "install",
+            "Pack images and database and install them on other server")
 
     config["logging"] = get_config(config_file, config_file.get,
             "general", "logging", default=logging.DEBUG).upper()
-
     config["plot"] = get_config(config_file, config_file.getboolean,
             "general", "plot", default=False)
 
     # trace
     config["trace_file"] = get_config_path(config_file, "trace", "file",
-            "path to trace file")
+            "Path of trace file")
 
     config["trace_gzip"] = get_config(config_file, config_file.getboolean,
             "trace", "gzip", default=False)
@@ -93,7 +95,7 @@ def read_config(config_filename):
     if config["filter"] or config["download"]:
         # filter
         a, b = get_config(config_file, config_file.get,
-                "filter", "interval", "time interval to filter trace "
+                "filter", "interval", "Time interval to filter trace "
                 "(timestamp:timestamp or timestamp:seconds)").split(":")
         a = float(a)
         b = float(b)
@@ -102,7 +104,8 @@ def read_config(config_filename):
         config["filter_interval"] = (a, b)
 
         config["filter_host"] = get_config(config_file, config_file.get,
-                "filter", "host", "host for rewrite urls")
+                "filter", "host",
+                "Host address for rewrite trace (name or IP)")
 
         config["filter_regex"] = get_config(config_file, config_file.get,
                 "filter", "regex", default=WikiFilter.DEFAULT_REGEX)
@@ -116,9 +119,9 @@ def read_config(config_filename):
 
     if config["download"] or config["install"]:
         # download
-        config["download_dir"] = get_config(config_file, config_file.get,
-                "download", "download_dir", "directory to download images")
-        config["download_dir"] = os.path.abspath(config["download_dir"])
+        config["download_dir"] = get_config_path(config_file, "download",
+                "download_dir", "Directory to download images and thumbs from "
+                "filter trace, also test if they already exist")
 
         config["download_port"] = get_config(config_file, config_file.getint,
                 "download", "port", default=80)
@@ -127,7 +130,7 @@ def read_config(config_filename):
                 "download", "async", default=25)
 
         config["download_wiki_dir"] = get_config_path(config_file, "download",
-                "wiki_dir", "wiki directory to copy images to")
+                "wiki_dir", "Mediawiki root directory")
 
         config["download_wiki_images"] = os.path.join(
                 config["download_wiki_dir"], "images")
@@ -137,21 +140,23 @@ def read_config(config_filename):
                 default=True)
 
         config["download_mysqld"] = get_config(config_file, config_file.get,
-                "download", "mysqld", "mysqld process name")
+                "download", "mysqld", "MySQL service name on localhost, used "
+                "to stop and start the database during packing the content")
 
         config["download_mysql_dir"] = get_config_path(config_file, "download",
-                "mysql_dir", "mysql directory")
+                "mysql_dir", "MySQL directory, packed for installation on "
+                "other server")
 
         config["download_clean_mysql"] = get_config(config_file,
                 config_file.getboolean, "download", "clean_mysql",
                 default=True)
 
         config["download_mysql_archive"] = get_config_path(config_file,
-                "download", "mysql_archive", default="")
+                "download", default="")
 
         config["download_output_dir"] = get_config_path(config_file,
-                "download", "output_dir", "directory to save packed "
-                "web content and mysql database")
+                "download", "output_dir", "Directory to save packed images "
+                "and database for exchange")
 
 
     if config["install"]:
@@ -163,13 +168,13 @@ def read_config(config_filename):
             # server config
             cfg = dict()
             cfg["user"] = get_config(config_file, config_file.get, sconfig,
-                    "user", "user account")
+                    "user", "Username on server")
             cfg["wiki_dir"] = get_config(config_file, config_file.get, sconfig,
                     "wiki_dir", default="None")
             cfg["mysqld"] = get_config(config_file, config_file.get, sconfig,
                     "mysqld", default="mysqld")
             cfg["mysql_dir"] = get_config(config_file, config_file.get,
-                    sconfig, "mysql_dir", default="None")
+                    sconfig, default="None")
             config["install_server_config"][sconfig] = cfg
 
     return config
