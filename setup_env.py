@@ -193,7 +193,7 @@ def main(config):
 
     if config["download"] or config["install"]:
         output_dir = config["download_output_dir"]
-        mysql_pack = os.path.join(output_dir, "mysql.tar.bz")
+        mysql_pack = os.path.join(output_dir, "mysql.tar")
         image_pack = os.path.join(output_dir, "image.tar")
         if not config["download"]:
             if not os.path.isfile(mysql_pack):
@@ -314,7 +314,7 @@ def main(config):
 
         log.info("Pack mysql db to %s" % mysql_pack)
         stop_service(log, service)
-        tar = tarfile.open(mysql_pack, "w:bz2")
+        tar = tarfile.open(mysql_pack, "w")
         for f in os.listdir(mysql_dir):
             tar.add(os.path.join(mysql_dir, f), arcname=f)
         tar.close()

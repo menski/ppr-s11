@@ -217,7 +217,7 @@ class FileClient(HTTPAsyncClient):
     def __init__(self, host, pipe, directory, port=80, channels=None):
         HTTPAsyncClient.__init__(self, host, pipe, port, channels)
         self._dir = directory
-        self._error = set()
+        self.error = set()
 
     def process_response(self):
         HTTPAsyncClient.process_response(self)
@@ -238,10 +238,7 @@ class FileClient(HTTPAsyncClient):
             except Exception, e:
                 self._log.error(self.logmsg(e))
         else:
-            self._error.add(self._host + self._path)
-
-    def error(self):
-        return self._error
+            self.error.add(self._host + self._path)
 
 
 class FileCrawler(HTTPCrawler):
@@ -258,8 +255,12 @@ class FileCrawler(HTTPCrawler):
 
     def postprocess(self):
         for client in self._clients:
-            self._error.update(client.error())
+            self._error.update(client.error)
         HTTPCrawler.postprocess(self)
 
-    def error(self):
-        return self._error()
+    def run(self):
+        HTTPCrawler.run(self)
+        if self._error:
+            self._log.info("Unable to find files:\n%s", "\n".join(self._error))
+        else:
+            self._log.info("All files found")
