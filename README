@@ -1,38 +1,16 @@
-Praktikum Paralleles Rechnen
+Praktikum Paralleles Rechnen (SS11)
 
-Aufgabenstellung: Aufrufen aller Wikipedia Artikel, damit alle Thumbnails
-generiert werden.
-
-Pakete:
- - httpasync:
-    - http      : Enthält die wichtigesten Grundklassen, wie HTTPAsyncClient
-                  einen HTTP/1.1 Client der persistente Verbindungen unterstützt.
-                  Oder HTTPCrawler der HTTPAsyncClient Instanzen nutzt um, in
-                  einem eigenen Thread, asynchrone HTTP Requests zu senden.
-    - wiki      : Enthält die spezielen Wikipedia Instanzen von HTTPAsyncClient
-                  und HTTPCrawler.
-    - tracei    : Enhält Klassen und Funktionen zum verarbeiten von Traces.
+Aufgabenstellung:
+    Erstellung eines Skripts zum Einrichten von Wikipedia Instanzen
 
 Dateien:
- - crawler.py   : Enthält eine main()-Routine, welche mehere Crawler konfiguriert
-                  und aufruft. Und so mit multithreading nutzt.
-
- - fetcher.py   : Enthält einen Datenbank fetcher für die Wikipedia MySQL
-                  Datenbank um alle Artikel URL's zu generieren.
-
- - analyze-trace.py : Enthält einen TraceAnalyzer für die Wikipedia Traces von
-                      wikibench.eu. Es wird eine <tracefile>.stats Datei angelegt,
-                      welche die Statistik des Trace enthälts. Wird die plot-Option
-                      aktiviert, wird zusätlich noch eine <tracefile>.log und
-                      <tracefile>.eps Datei angelegt, welche das gnuplot Log und
-                      die gnuplot Ausgabe enthalten.
-
- - filter-trace.py  : Enthält einen TraceFilter für Wikipedia Traces von wikibench.eu.
-                      Es wird ein gefiltertes Tracefile angelegt unter dem Name
-                      <tracefile>.<start>-<end> und optional analysiert.
-
-Aufruf:
-    Siehe 'crawler.py -h' füre weitere Informationen.
-    Siehe 'fetcher.py -h' füre weitere Informationen.
-    Siehe 'analzye-trace.py -h' füre weitere Informationen.
-    Siehe 'filter-trace.py -h' füre weitere Informationen.
+    setup_env.py    : Hauptskript, welches als Parameter eine Konfigurations-Datei 
+                      erwartet.
+    example.cfg     : Eine Beispiel Konfigurations-Datei mit Erklärungen zu den
+                      verschieden Optionen.
+    ppr/            : Python ppr Modul.
+     |_ basic.py    : Basis Klassen die im ppr Modul genutzt werden.
+     |_ http.py     : Klassen zum Senden von HTTP1.0/1.1 Requests.
+     |_ server.py   : Klassen und Funktionen zum Ausführen von Shell-Befehlen
+     |                und zum Syncen von Servern.
+     |_ trace.py    : Klassen zum Analysieren und Filtern von Traces.
