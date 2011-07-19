@@ -24,7 +24,7 @@ class Process(multiprocessing.Process):
         self._log = multiprocessing.get_logger()
         if not self._log.handlers:
             self.create_log_handler(output, loglevel)
-        self._log.debug("Process created %s" % self.name)
+        self._log.debug("Process created %s", self.name)
 
     def create_log_handler(self, output, loglevel):
         formatter = logging.Formatter(
@@ -39,7 +39,7 @@ class Process(multiprocessing.Process):
     def set_log_level(self, loglevel):
         if self._log.level != loglevel:
             self._log.setLevel(loglevel)
-            self._log.debug("Set log level to: %d" % loglevel)
+            self._log.debug("Set log level to: %d", loglevel)
 
 
 class FileReader(Process):
@@ -50,15 +50,15 @@ class FileReader(Process):
         self._filename = filename
         self._openfunc = openfunc
         self._pipes = pipes
-        self._log.debug("FileReader for %s created with %d pipes" %
-                (filename, len(pipes)))
+        self._log.debug("FileReader for %s created with %d pipes", filename,
+                len(pipes))
 
     def read(self, line):
         for pipe in self._pipes:
             pipe.send(line)
 
     def run(self):
-        self._log.info("FileReader for %s started" % self._filename)
+        self._log.info("FileReader for %s started", self._filename)
 
         if self._pipes:
             input = self._openfunc(self._filename, "r")
@@ -73,7 +73,7 @@ class FileReader(Process):
                     pipe.close()
         else:
             self._log.warning("No pipes given")
-        self._log.info("FileReader for %s finished" % self._filename)
+        self._log.info("FileReader for %s finished", self._filename)
 
 
 class PipeReader(Process):
@@ -113,20 +113,20 @@ class FileWriter(PipeReader):
         PipeReader.__init__(self, timeout)
         self._filename = filename
         self._openfunc = openfunc
-        self._log.debug("FileWriter for %s created" % filename)
+        self._log.debug("FileWriter for %s created", filename)
 
     def consume(self, line):
         self._output.write(line + "\n")
 
     def run(self):
-        self._log.info("FileWriter for %s started" % self._filename)
+        self._log.info("FileWriter for %s started", self._filename)
         self._output = self._openfunc(self._filename, "w")
         self._log.debug("Write file %s", self._filename)
         try:
             PipeReader.run(self)
         finally:
             self._output.close()
-        self._log.info("FileWriter for %s finished" % self._filename)
+        self._log.info("FileWriter for %s finished", self._filename)
 
 
 class SyncClient(Process):

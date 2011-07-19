@@ -301,7 +301,7 @@ def main(config):
         if config["download_clean_mysql"]:
             stop_service(log, service)
 
-            log.info("Unpack clean mysql db %s to %s" % (archive, mysql_dir))
+            log.info("Unpack clean mysql db %s to %s", archive, mysql_dir)
             tar = tarfile.open(archive)
             tar.extractall(path=mysql_dir)
             tar.close()
@@ -313,15 +313,15 @@ def main(config):
         cmd = " ".join(["php", script, "--missing"])
         rc, output = execute(cmd)
         if output[0]:
-            log.debug("\n" + output[0])
+            log.debug("\n%s", output[0])
         if output[1]:
-            log.error("\n" + output[1])
+            log.error("\n%s", output[1])
 
         if not os.path.isdir(output_dir):
             log.info("Create output directory %s", output_dir)
             os.makedirs(output_dir)
 
-        log.info("Pack mysql db to %s" % mysql_pack)
+        log.info("Pack mysql db to %s", mysql_pack)
         stop_service(log, service)
         tar = tarfile.open(mysql_pack, "w")
         for f in os.listdir(mysql_dir):
@@ -329,7 +329,7 @@ def main(config):
         tar.close()
         start_service(log, service)
 
-        log.info("Pack images to %s" % image_pack)
+        log.info("Pack images to %s", image_pack)
         tar = tarfile.open(image_pack, "w")
         for f in os.listdir(config["download_wiki_images"]):
             tar.add(os.path.join(config["download_wiki_images"], f), arcname=f)

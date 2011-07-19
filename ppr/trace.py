@@ -78,7 +78,7 @@ class TraceAnalyser(PipeReader):
         self._plot = plot
         self._gnuplot = gnuplot
         self.init()
-        self._log.debug("TraceAnalyser for %s created" % filename)
+        self._log.debug("TraceAnalyser for %s created", filename)
 
     def init(self):
         """Initialize the analyzier."""
@@ -98,12 +98,12 @@ class TraceAnalyser(PipeReader):
 
     def run(self):
         """Run analyse process."""
-        self._log.info("TraceAnalyser for %s started" % self._filename)
+        self._log.info("TraceAnalyser for %s started", self._filename)
         PipeReader.run(self)
         self.stats()
         if self._plot:
             self.plot()
-        self._log.info("TraceAnalyser for %s finished" % self._filename)
+        self._log.info("TraceAnalyser for %s finished", self._filename)
 
 
 class WikiAnalyser(TraceAnalyser):
@@ -160,8 +160,7 @@ class WikiAnalyser(TraceAnalyser):
             host = split.hostname
             path = split.path
         except Exception, e:
-            self._log.critical("ERROR: Unable to parse line %s (%s)" %
-                    (line, e))
+            self._log.critical("ERROR: Unable to parse line %s (%s)", line, e)
             sys.exit(3)
         timestamp = float(timestamp)
 
@@ -302,7 +301,7 @@ class TraceFilter(PipeReader):
         self._filename = filename
         self._regex = re.compile(regex)
         self._analyse = analyse
-        self._log.debug("Tracefilter for %s created" % filename)
+        self._log.debug("Tracefilter for %s created", filename)
 
     def consume(self, line):
         """Filter line from tracefile."""
@@ -444,16 +443,16 @@ class FileCollector(PipeReader):
             dirname = os.path.dirname(target)
             if not os.path.isdir(dirname):
                 os.makedirs(dirname)
-                self._log.debug("Create directory %s" % dirname)
+                self._log.debug("Create directory %s", dirname)
             shutil.copy(filename, target)
-            self._log.debug("Copy file %s to %s" % (filename, target))
+            self._log.debug("Copy file %s to %s", filename, target)
         except Exception, e:
-            self._log.error("Unable to copy file %s (%s)" % (filename, e))
+            self._log.error("Unable to copy file %s (%s)", filename, e)
 
     def consume(self, url):
         filename = self.get_filename(urllib.unquote(url))
         if os.path.isfile(filename):
-            self._log.debug("File %s already exists at %s" % (url, filename))
+            self._log.debug("File %s already exists at %s", url, filename)
             self.copy_file(filename)
         else:
             split = urlparse.urlsplit(url)
@@ -463,8 +462,8 @@ class FileCollector(PipeReader):
                 self._crawler[host] = FileCrawler(host, self._download_dir,
                         self._port, self._async, self._retry, self._timeout)
                 self._crawler[host].start()
-            self._log.debug("Send %s path to FileCrawler for host %s" %
-                    (path, host))
+            self._log.debug("Send %s path to FileCrawler for host %s", path,
+                    host)
             self._crawler[host].pipe.send(path)
             self._downloads.append(filename)
 

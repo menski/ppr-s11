@@ -38,12 +38,12 @@ class HTTPAsyncClient(asynchat.async_chat):
         self.set_terminator(HTTPAsyncClient.TERMINATOR)
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connect((self._host, self._port))
-        self._log.debug(self.logmsg("HTTPAsyncClient connected to %s:%d" %
-            (self._host, self._port)))
+        self._log.debug(self.logmsg("HTTPAsyncClient connected to %s:%d",
+            self._host, self._port))
         self.send_request()
 
-    def logmsg(self, msg):
-        return "[FD: %3d] %s" % (self.fileno(), msg)
+    def logmsg(self, msg, *args):
+        return "[FD: %3d] %s" % (self.fileno(), msg % args)
 
     def get_request(self):
         return HTTPAsyncClient.HTTP_COMMAND % (self._path, self._host)
@@ -69,7 +69,7 @@ class HTTPAsyncClient(asynchat.async_chat):
                 request = self.get_request()
                 self.push(request)
                 self._time = time.time()
-                self._log.debug(self.logmsg("Send request: %s" %
+                self._log.debug(self.logmsg("Send request: %s",
                     request.replace("\r\n", "(CRLF)")))
         else:
             self._log.debug("Close connection (no requests found)")
@@ -108,9 +108,9 @@ class HTTPAsyncClient(asynchat.async_chat):
         self._content_length = self.get_content_length()
         self._log.debug(self.logmsg(
             "Header received (Protocol: %s, Status: %d %s, Close: %s, Chunk: "
-            "%s, Content-Lenght: %d, Time: %f) %s" % (self._protocol,
-                self._status, self._status_msg, self._close, self._chunked,
-                self._content_length, self._htime, self._path)))
+            "%s, Content-Lenght: %d, Time: %f) %s", self._protocol,
+            self._status, self._status_msg, self._close, self._chunked,
+            self._content_length, self._htime, self._path))
 
     def get_status(self):
         return -1
@@ -136,8 +136,8 @@ class HTTPAsyncClient(asynchat.async_chat):
     def process_response(self):
         self._log.debug(self.logmsg(
             "Response received (Protocol: %s, Status: %d %s, Length: %d, "
-            "Time: %f) %s" % (self._protocol, self._status, self._status_msg,
-            len(self._body), self._time, self._path)))
+            "Time: %f) %s", self._protocol, self._status, self._status_msg,
+            len(self._body), self._time, self._path))
 
 
 class HTTPCrawler(PipeReader):
@@ -152,8 +152,8 @@ class HTTPCrawler(PipeReader):
         self._clients = []
         self._done = False
         self._channels = dict()
-        self._log.debug("HTTPCrawler created for %s:%d with %d clients" %
-                (self._host, self._port, self._async))
+        self._log.debug("HTTPCrawler created for %s:%d with %d clients",
+                self._host, self._port, self._async)
 
     def create_client(self):
         return HTTPAsyncClient(self._host, self._pipe, self._port,
@@ -208,8 +208,8 @@ class HTTPCrawler(PipeReader):
                     self._done = True
                     break
         else:
-            self._log.error("Unable to connect to %s:%d" %
-                    (self._host, self._port))
+            self._log.error("Unable to connect to %s:%d", self._host,
+                    self._port)
 
 
 class FileClient(HTTPAsyncClient):
@@ -229,12 +229,12 @@ class FileClient(HTTPAsyncClient):
             try:
                 if not os.path.isdir(directory):
                     os.makedirs(directory)
-                    self._log.debug(self.logmsg("Create directory %s" %
+                    self._log.debug(self.logmsg("Create directory %s",
                         directory))
                 with open(file_path, "wb") as output:
                     output.write(self._data)
-                self._log.debug(self.logmsg("Write %s to %s" %
-                    (self._path, file_path)))
+                self._log.debug(self.logmsg("Write %s to %s", self._path,
+                    file_path))
             except Exception, e:
                 self._log.error(self.logmsg(e))
         else:

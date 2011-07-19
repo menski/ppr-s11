@@ -19,6 +19,7 @@ import subprocess
 import shlex
 import re
 
+
 def execute(cmd, pipe=True):
     args = shlex.split(cmd)
     if pipe:
@@ -33,22 +34,22 @@ def execute(cmd, pipe=True):
 
 
 def stop_service(log, service):
-    log.info("Check status of %s service" % service)
+    log.info("Check status of %s service", service)
     cmd = "service %s status" % service
     rc, output = execute(cmd)
     if rc == 1:
-        log.error("Unknown service " + service)
+        log.error("Unknown service %s", service)
         sys.exit(2)
     if re.compile(r'|'.join(["start", "process", "PID"])).search(output[0]):
-        log.info("Stop %s service" % service)
+        log.info("Stop %s service", service)
         cmd = "service %s stop" % service
         rc, output = execute(cmd)
         if rc != 0:
-            log.error("Unable to stop %s service" % service)
+            log.error("Unable to stop %s service", service)
             sys.exit(2)
-        log.info("Service %s stopped" % service)
+        log.info("Service %s stopped", service)
     else:
-        log.info("Service %s already stopped" % service)
+        log.info("Service %s already stopped", service)
 
 
 def start_service(log, service):
@@ -58,13 +59,13 @@ def start_service(log, service):
         log.info("Service %s already started", service)
         return
 
-    log.info("Start %s service" % service)
+    log.info("Start %s service", service)
     cmd = "service %s start" % service
     rc, output = execute(cmd)
     if rc != 0:
-        log.error("Unable to start service " + service)
+        log.error("Unable to start service %s", service)
         sys.exit(2)
-    log.info("Service %s successful started" % service)
+    log.info("Service %s successful started", service)
 
 
 def scp_files(host, user, files, exe, log, directory="~/"):
@@ -116,7 +117,7 @@ if __name__ == '__main__':
             if o in ["-m", "--mysqld"]:
                 mysqld = a
             if o in ["-i", "--images"]:
-                images= a
+                images = a
             if o in ["-d", "--db"]:
                 db = a
             if o in ["-w", "--wiki"]:
