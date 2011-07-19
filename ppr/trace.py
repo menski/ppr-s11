@@ -72,9 +72,10 @@ def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
 class TraceAnalyser(PipeReader):
     """Analyse a trace and output some statitics."""
 
-    def __init__(self, filename, timeout=None):
+    def __init__(self, filename, plot=True, timeout=None):
         PipeReader.__init__(self, timeout)
         self._filename = filename
+        self._plot = plot
         self._gnuplot = gnuplot
         self.init()
         self._log.debug("TraceAnalyser for %s created" % filename)
@@ -100,15 +101,16 @@ class TraceAnalyser(PipeReader):
         self._log.info("TraceAnalyser for %s started" % self._filename)
         PipeReader.run(self)
         self.stats()
-        self.plot()
+        if self._plot:
+            self.plot()
         self._log.info("TraceAnalyser for %s finished" % self._filename)
 
 
 class WikiAnalyser(TraceAnalyser):
     """Analyse a wiki trace from wikibench.eu"""
 
-    def __init__(self, filename, openfunc=open, timeout=None):
-        TraceAnalyser.__init__(self, filename, timeout)
+    def __init__(self, filename, openfunc=open, plot=True, timeout=None):
+        TraceAnalyser.__init__(self, filename, plot, timeout)
         self._openfunc = openfunc
 
     def init(self):
@@ -326,12 +328,13 @@ class WikiFilter(TraceFilter):
     r'http://upload.wikimedia.org/wikipedia/en/'])
 
     def __init__(self, filename, host, interval, regex=None, analyse=False,
-            openfunc=open, timeout=None):
+            openfunc=open, plot=False, timeout=None):
         self._host = "http://" + host
         self._interval = interval
         self._filterfile = WikiFilter.get_filterfile(filename, interval)
         self._rewritefile = WikiFilter.get_rewritefile(filename, interval)
         self._openfunc = openfunc
+        self._plot = plot
         if regex is None:
             regex = WikiFilter.DEFAULT_REGEX
         TraceFilter.__init__(self, filename, regex, analyse, timeout)
@@ -391,7 +394,7 @@ class WikiFilter(TraceFilter):
 
         if self._analyse:
             analyser = WikiAnalyser(self._filterfile, self._openfunc,
-                    self._timeout)
+                    self._plot, self._timeout)
             self._analyser = analyser.pipe
             analyser.start()
 

@@ -76,6 +76,9 @@ def read_config(config_filename):
     config["logging"] = get_config(config_file, config_file.get,
             "general", "logging", default=logging.DEBUG).upper()
 
+    config["plot"] = get_config(config_file, config_file.getboolean,
+            "general", "plot", default=False)
+
     # trace
     config["trace_file"] = get_config_path(config_file, "trace", "file",
             "path to trace file")
@@ -189,7 +192,8 @@ def main(config):
 
     reader_pipes = []
     if config["analyse"]:
-        analyser = WikiAnalyser(config["trace_file"], config["trace_openfunc"])
+        analyser = WikiAnalyser(config["trace_file"], config["trace_openfunc"],
+                config["plot"])
         analyser.start()
         reader_pipes.append(analyser.pipe)
 
@@ -212,10 +216,10 @@ def main(config):
         filter.join()
 
     # download and install
-
-    output_dir = config["download_output_dir"]
-    mysql_pack = os.path.join(output_dir, "mysql.tar.bz")
-    image_pack = os.path.join(output_dir, "image.tar")
+    if config["download"] or config["install"]:
+        output_dir = config["download_output_dir"]
+        mysql_pack = os.path.join(output_dir, "mysql.tar.bz")
+        image_pack = os.path.join(output_dir, "image.tar")
 
     if config["download"]:
         filterfile = WikiFilter.get_filterfile(config["trace_file"],
