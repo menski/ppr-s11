@@ -152,7 +152,7 @@ def read_config(config_filename):
                 default=True)
 
         config["download_mysql_archive"] = get_config_path(config_file,
-                "download", default="")
+                "download", "mysql_archive", default="")
 
         config["download_output_dir"] = get_config_path(config_file,
                 "download", "output_dir", "Directory to save packed images "
@@ -174,7 +174,7 @@ def read_config(config_filename):
             cfg["mysqld"] = get_config(config_file, config_file.get, sconfig,
                     "mysqld", default="mysqld")
             cfg["mysql_dir"] = get_config(config_file, config_file.get,
-                    sconfig, default="None")
+                    sconfig, "mysql_dir", default="None")
             config["install_server_config"][sconfig] = cfg
 
     return config
@@ -183,10 +183,6 @@ def read_config(config_filename):
 def main(config):
 
     log = multiprocessing.get_logger()
-    # hack for logging
-    if not config["analyse"] and not config["filter"] \
-        and not config["download"]:
-        Process()
 
     # analyse and filter
     Process.DEFAULT_LOGLEVEL = logging.getLevelName(config["logging"])
