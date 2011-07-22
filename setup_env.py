@@ -216,6 +216,7 @@ def main(config):
         (path, ext) = os.path.splitext(filterfile)
         imagefile = WikiAnalyser.get_special_file(filterfile, "image")
         thumbfile = WikiAnalyser.get_special_file(filterfile, "thumb")
+        wiki_images = config["download_wiki_images"]
 
         if not os.path.isfile(imagefile):
             print_error("Unable to find filtered image trace " + imagefile)
@@ -223,9 +224,8 @@ def main(config):
         if not os.path.isfile(thumbfile):
             print_error("Unable to find filtered thumb trace " + thumbfile)
 
-        if not os.path.isdir(config["download_wiki_images"]):
-            print_error("Unable to find wiki images dir " +
-                    config["download_wiki_images"])
+        if not os.path.isdir(wiki_images):
+            print_error("Unable to find wiki images dir " + wiki_images)
 
         mysql_dir = config["download_mysql_dir"]
         if not os.path.isdir(mysql_dir):
@@ -273,19 +273,22 @@ def main(config):
     # download
     if config["download"]:
         if config["download_clean_images"]:
-            shutil.rmtree(config["download_wiki_images"])
-            os.makedirs(config["download_wiki_images"])
+            log.debug("Remove wiki image directory %s", wiki_images)
+            shutil.rmtree(wiki_images)
+            log.debug("Create wiki image directory %s", wiki_images)
+            os.makedirs(wiki_images)
 
-        image_collector = FileCollector(config["download_dir"],
-                config["download_wiki_images"], config["filter_regex"],
-                config["download_port"], config["download_async"])
-        thumb_collector = FileCollector(config["download_dir"],
+        image_collector = FileCollector(config["download_dir"], wiki_images,
                 config["download_wiki_images"], config["filter_regex"],
                 config["download_port"], config["download_async"])
         image_reader = FileReader(imagefile, config["filter_openfunc"],
                 pipes=[image_collector.pipe])
         image_reader.start()
         image_collector.start()
+
+        thumb_collector = FileCollector(config["download_dir"],
+                config["download_wiki_images"], config["filter_regex"],
+                config["download_port"], config["download_async"])
         thumb_reader = FileReader(thumbfile, config["filter_openfunc"],
                 pipes=[thumb_collector.pipe])
         thumb_reader.start()
@@ -331,8 +334,8 @@ def main(config):
 
         log.info("Pack images to %s", image_pack)
         tar = tarfile.open(image_pack, "w")
-        for f in os.listdir(config["download_wiki_images"]):
-            tar.add(os.path.join(config["download_wiki_images"], f), arcname=f)
+        for f in os.listdir(wiki_images):
+            tar.add(os.path.join(wiki_images, f), arcname=f)
         tar.close()
 
     # install
