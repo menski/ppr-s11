@@ -279,16 +279,16 @@ def main(config):
             os.makedirs(wiki_images)
 
         image_collector = FileCollector(config["download_dir"], wiki_images,
-                config["download_wiki_images"], config["filter_regex"],
-                config["download_port"], config["download_async"])
+                config["filter_regex"], config["download_port"],
+                config["download_async"])
         image_reader = FileReader(imagefile, config["filter_openfunc"],
                 pipes=[image_collector.pipe])
         image_reader.start()
         image_collector.start()
 
-        thumb_collector = FileCollector(config["download_dir"],
-                config["download_wiki_images"], config["filter_regex"],
-                config["download_port"], config["download_async"])
+        thumb_collector = FileCollector(config["download_dir"], wiki_images,
+                config["filter_regex"], config["download_port"],
+                config["download_async"])
         thumb_reader = FileReader(thumbfile, config["filter_openfunc"],
                 pipes=[thumb_collector.pipe])
         thumb_reader.start()
