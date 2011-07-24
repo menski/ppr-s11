@@ -188,6 +188,34 @@ def read_config(config_filename):
     return config
 
 
+def pack_db(log, script, output_dir, mysql_dir, mysql_pack, service):
+        cmd = " ".join(["php", script, "--missing"])
+        rc, output = execute(cmd)
+        if output[0]:
+            log.debug("\n%s", output[0])
+        if output[1]:
+            log.error("\n%s", output[1])
+
+        if not os.path.isdir(output_dir):
+            log.info("Create output directory %s", output_dir)
+            os.makedirs(output_dir)
+
+        log.info("Pack mysql db to %s", mysql_pack)
+        stop_service(log, service)
+        tar = tarfile.open(mysql_pack, "w")
+        for f in os.listdir(mysql_dir):
+            tar.add(os.path.join(mysql_dir, f), arcname=f)
+        tar.close()
+        start_service(log, service)
+
+
+def pack_images(image_pack, wiki_images):
+    tar = tarfile.open(image_pack, "w")
+    for f in os.listdir(wiki_images):
+        tar.add(os.path.join(wiki_images, f), arcname=f)
+    tar.close()
+
+
 def main(config):
 
     log = multiprocessing.get_logger()
@@ -313,30 +341,16 @@ def main(config):
         start_service(log, service)
 
         log.info("Import images to database")
-        cmd = " ".join(["php", script, "--missing"])
-        rc, output = execute(cmd)
-        if output[0]:
-            log.debug("\n%s", output[0])
-        if output[1]:
-            log.error("\n%s", output[1])
-
-        if not os.path.isdir(output_dir):
-            log.info("Create output directory %s", output_dir)
-            os.makedirs(output_dir)
-
-        log.info("Pack mysql db to %s", mysql_pack)
-        stop_service(log, service)
-        tar = tarfile.open(mysql_pack, "w")
-        for f in os.listdir(mysql_dir):
-            tar.add(os.path.join(mysql_dir, f), arcname=f)
-        tar.close()
-        start_service(log, service)
+        p_db = multiprocessing.Process(target=pack_db, args=(log, script,
+            output_dir, mysql_dir, mysql_pack, service))
+        p_db.start()
 
         log.info("Pack images to %s", image_pack)
-        tar = tarfile.open(image_pack, "w")
-        for f in os.listdir(wiki_images):
-            tar.add(os.path.join(wiki_images, f), arcname=f)
-        tar.close()
+        p_images = multiprocessing.Process(target=pack_images, args=(
+            image_pack, wiki_images))
+        p_images.start()
+        p_images.join()
+        p_db.join()
 
     # install
     if config["install"]:
