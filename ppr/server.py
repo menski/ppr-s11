@@ -75,7 +75,6 @@ def scp_files(host, user, files, exe, log, directory="~/"):
     vars["host"] = host
     vars["dir"] = directory
     cmd = "scp %(files)s %(user)s@%(host)s:%(dir)s" % vars
-    print cmd
     log.info("Copy files to %s", host)
     log.debug("cmd: %s", cmd)
     rc = execute(cmd, pipe=False)

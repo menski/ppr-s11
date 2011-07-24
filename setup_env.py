@@ -246,10 +246,10 @@ def main(config):
         thumbfile = WikiAnalyser.get_special_file(filterfile, "thumb")
         wiki_images = config["download_wiki_images"]
 
-        if not os.path.isfile(imagefile):
+        if not config["filter"] and not os.path.isfile(imagefile):
             print_error("Unable to find filtered image trace " + imagefile)
 
-        if not os.path.isfile(thumbfile):
+        if not config["filter"] and not os.path.isfile(thumbfile):
             print_error("Unable to find filtered thumb trace " + thumbfile)
 
         if not os.path.isdir(wiki_images):
