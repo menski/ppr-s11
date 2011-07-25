@@ -131,25 +131,27 @@ class FileWriter(PipeReader):
 
 class SyncClient(Process):
 
-    def __init__(self, host, config, images_file, mysql_file, script):
+    def __init__(self, host, config, wiki_file, mysql_file, script):
         Process.__init__(self)
         self._host = host
         self._config = config
-        self._images_file = images_file
+        self._wiki_file = wiki_file
         self._mysql_file = mysql_file
         self._script = script
 
     def run(self):
         user = self._config["user"]
-        files = [self._images_file, self._mysql_file, self._script]
+        files = [self._wiki_file, self._mysql_file, self._script]
         params = dict()
+        params["dir"] = self._config["copy_dir"]
         params["script"] = os.path.split(self._script)[1]
         params["mysqld"] = self._config["mysqld"]
-        params["images"] = os.path.split(self._images_file)[1]
+        params["archive"] = os.path.split(self._wiki_file)[1]
         params["db"] = os.path.split(self._mysql_file)[1]
         params["wiki"] = self._config["wiki_dir"]
         params["mysql"] = self._config["mysql_dir"]
-        exe = ["python %(script)s -m %(mysqld)s -i %(images)s -d %(db)s "
-                "-w %(wiki)s -q %(mysql)s" % params]
+        exe = ["python %(dir)s%(script)s -m %(mysqld)s -a %(dir)s%(archive)s "
+                "-d %(dir)s%(db)s -w %(wiki)s -q %(mysql)s" % params]
+        self._log.info("SCP files: %s", ", ".join(files))
         scp_files(self._host, user, files, exe, self._log,
                 self._config["copy_dir"])

@@ -211,10 +211,10 @@ def pack_db(log, script, output_dir, mysql_dir, mysql_pack, service):
         start_service(log, service)
 
 
-def pack_images(image_pack, wiki_images):
-    tar = tarfile.open(image_pack, "w")
-    for f in os.listdir(wiki_images):
-        tar.add(os.path.join(wiki_images, f), arcname=f)
+def pack_mediawiki(wiki_pack, wiki_dir):
+    tar = tarfile.open(wiki_pack, "w")
+    for f in os.listdir(wiki_dir):
+        tar.add(os.path.join(wiki_dir, f), arcname=f)
     tar.close()
 
 
@@ -233,12 +233,12 @@ def main(config):
     if config["download"] or config["install"]:
         output_dir = config["download_output_dir"]
         mysql_pack = os.path.join(output_dir, "mysql.tar")
-        image_pack = os.path.join(output_dir, "image.tar")
+        wiki_pack = os.path.join(output_dir, "wiki.tar")
         if not config["download"]:
             if not os.path.isfile(mysql_pack):
                 print_error("Unable to find packed database " + mysql_pack)
-            if not os.path.isfile(image_pack):
-                print_error("Unable to find packed images " + image_pack)
+            if not os.path.isfile(wiki_pack):
+                print_error("Unable to find packed mediawiki " + wiki_pack)
 
     if config["download"]:
         filterfile = WikiFilter.get_filterfile(trace_file,
@@ -347,9 +347,9 @@ def main(config):
             output_dir, mysql_dir, mysql_pack, service))
         p_db.start()
 
-        log.info("Pack images to %s", image_pack)
-        p_images = multiprocessing.Process(target=pack_images, args=(
-            image_pack, wiki_images))
+        log.info("Pack mediawiki to %s", wiki_pack)
+        p_images = multiprocessing.Process(target=pack_mediawiki, args=(
+            wiki_pack, config["download_wiki_dir"]))
         p_images.start()
         p_images.join()
         p_db.join()
@@ -364,7 +364,7 @@ def main(config):
 
         for cfg in server:
             for host in server[cfg]:
-                s = SyncClient(host, sconfig[cfg], image_pack, mysql_pack,
+                s = SyncClient(host, sconfig[cfg], wiki_pack, mysql_pack,
                         script)
                 s.start()
                 sync.append(s)

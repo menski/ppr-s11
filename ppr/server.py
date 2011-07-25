@@ -8,8 +8,8 @@ Usage: python server.py [OPTIONS]
 
 Options:
     -m, --mysqld    : mysqld service name
-    -i, --images    : image.tar path
-    -d, --db        : mysql archive path
+    -a, --archive   : wiki.tar path
+    -d, --db        : mysql.tar path
     -w, --wiki      : wikipedia directory
     -q, --mysql     : mysql directory
     -h, --help      : print this message
@@ -99,8 +99,8 @@ def scp_files(host, user, files, exe, log, directory="~/"):
 
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hm:i:d:w:q:",
-                ["httpd=", "mysqld=", "images=", "db=", "wiki=", "mysql=",
+        opts, args = getopt.getopt(sys.argv[1:], "hm:a:d:w:q:",
+                ["httpd=", "mysqld=", "archive=", "db=", "wiki=", "mysql=",
                 "help"])
 
         for o, a in opts:
@@ -109,8 +109,8 @@ def main():
                 sys.exit(0)
             if o in ["-m", "--mysqld"]:
                 mysqld = a
-            if o in ["-i", "--images"]:
-                images = a
+            if o in ["-a", "--archive"]:
+                archive = a
             if o in ["-d", "--db"]:
                 db = a
             if o in ["-w", "--wiki"]:
@@ -127,14 +127,14 @@ def main():
         log.setLevel(logging.DEBUG)
 
         if wiki != "None":
-            images_dir = os.path.realpath(os.path.join(wiki, "images"))
 
-            log.info("Remove images directory '%s'", images_dir)
-            shutil.rmtree(images_dir)
+            if os.path.isdir(wiki):
+                log.info("Remove wiki directory '%s'", wiki)
+                shutil.rmtree(wiki)
 
-            log.info("Unpack images '%s' to '%s'", images, images_dir)
-            tar = tarfile.open(images)
-            tar.extractall(path=images_dir)
+            log.info("Unpack mediawiki '%s' to '%s'", archive, wiki)
+            tar = tarfile.open(archive)
+            tar.extractall(path=wiki)
             tar.close()
 
         if mysql != "None":
