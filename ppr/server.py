@@ -69,12 +69,12 @@ def start_service(log, service):
 
 
 def scp_files(host, user, files, exe, log, directory="~/"):
-    vars = dict()
-    vars["files"] = " ".join(files)
-    vars["user"] = user
-    vars["host"] = host
-    vars["dir"] = directory
-    cmd = "scp %(files)s %(user)s@%(host)s:%(dir)s" % vars
+    params = dict()
+    params["files"] = " ".join(files)
+    params["user"] = user
+    params["host"] = host
+    params["dir"] = directory
+    cmd = "scp %(files)s %(user)s@%(host)s:%(dir)s" % params
     log.info("Copy files to %s", host)
     log.debug("cmd: %s", cmd)
     rc = execute(cmd, pipe=False)
@@ -84,11 +84,11 @@ def scp_files(host, user, files, exe, log, directory="~/"):
         log.info("Successful copied files to %s", host)
         for cmd in exe:
             log.info("Execute '%s' on %s", cmd, host)
-            vars = dict()
-            vars["user"] = user
-            vars["host"] = host
-            vars["cmd"] = cmd
-            cmd = "ssh %(user)s@%(host)s %(cmd)s" % vars
+            params = dict()
+            params["user"] = user
+            params["host"] = host
+            params["cmd"] = cmd
+            cmd = "ssh %(user)s@%(host)s %(cmd)s" % params
             log.debug("cmd: %s", cmd)
             rc = execute(cmd, pipe=False)
             if rc != 0:
@@ -97,20 +97,14 @@ def scp_files(host, user, files, exe, log, directory="~/"):
                 log.info("Successful executed command on %s", host)
 
 
-if __name__ == '__main__':
-    import getopt
-    import logging
-    import os.path
-    import shutil
-    import tarfile
-
+def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hm:i:d:w:q:",
                 ["httpd=", "mysqld=", "images=", "db=", "wiki=", "mysql=",
                 "help"])
 
         for o, a in opts:
-            if o in ["-h, --help"]:
+            if o in ["-h", "--help"]:
                 print __doc__
                 sys.exit(0)
             if o in ["-m", "--mysqld"]:
@@ -159,3 +153,12 @@ if __name__ == '__main__':
         print >> sys.stderr, e
         print __doc__
         sys.exit(1)
+
+
+if __name__ == '__main__':
+    import getopt
+    import logging
+    import os.path
+    import shutil
+    import tarfile
+    main()

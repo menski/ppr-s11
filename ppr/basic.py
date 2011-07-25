@@ -142,13 +142,14 @@ class SyncClient(Process):
     def run(self):
         user = self._config["user"]
         files = [self._images_file, self._mysql_file, self._script]
-        vars = dict()
-        vars["script"] = os.path.split(self._script)[1]
-        vars["mysqld"] = self._config["mysqld"]
-        vars["images"] = os.path.split(self._images_file)[1]
-        vars["db"] = os.path.split(self._mysql_file)[1]
-        vars["wiki"] = self._config["wiki_dir"]
-        vars["mysql"] = self._config["mysql_dir"]
+        params = dict()
+        params["script"] = os.path.split(self._script)[1]
+        params["mysqld"] = self._config["mysqld"]
+        params["images"] = os.path.split(self._images_file)[1]
+        params["db"] = os.path.split(self._mysql_file)[1]
+        params["wiki"] = self._config["wiki_dir"]
+        params["mysql"] = self._config["mysql_dir"]
         exe = ["python %(script)s -m %(mysqld)s -i %(images)s -d %(db)s "
-                "-w %(wiki)s -q %(mysql)s" % vars]
-        scp_files(self._host, user, files, exe, self._log)
+                "-w %(wiki)s -q %(mysql)s" % params]
+        scp_files(self._host, user, files, exe, self._log,
+                self._config["copy_dir"])

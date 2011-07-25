@@ -177,6 +177,8 @@ def read_config(config_filename):
             cfg = dict()
             cfg["user"] = get_config_str(config_file, sconfig, "user",
                     "Username on server")
+            cfg["copy_dir"] = get_config_str(config_file, sconfig, "copy_dir",
+                    default="~/")
             cfg["wiki_dir"] = get_config_str(config_file, sconfig, "wiki_dir",
                     default="None")
             cfg["mysqld"] = get_config_str(config_file, sconfig, "mysqld",
