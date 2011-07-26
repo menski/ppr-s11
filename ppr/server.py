@@ -137,6 +137,15 @@ def main():
             tar.extractall(path=wiki)
             tar.close()
 
+            images_dir = os.path.join(wiki, "images")
+
+            log.info("Chmod 777 images dir '%s'", images_dir)
+            result = execute("chmod -R 777 %s" % images_dir, pipe=False)
+            if result == 0:
+                log.info("Successful installed mediawiki")
+            else:
+                log.error("Unable to chmod 777 %s", images_dir)
+
         if mysql != "None":
             stop_service(log, mysqld)
 
