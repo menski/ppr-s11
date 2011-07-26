@@ -1,18 +1,18 @@
 \section{Einleitung}
 \label{sec:einleitung}
 
-Um Webserver und Server Load Balancer zu testen werden verschiedenste Benchmarks verwendet. Oft nutzen diese Benchmarks synthetisch erzeugte Requests, im Falle von Webservern auch synthetische Websites. Dies hat zum Nachteil, dass kein realistisches Nutzerverhalten simuliert werden kann. Somit fehlt die Verbindung zu realistischen Lastsituationen. Zum Testen von existieren Webservern können realistische, aufgezeichnete Traces genutzt und modifiziert werden um realistischere Lasttests zu generieren. Für das Testen von Server Load Balancer bleibt weiterhin das Problem, dass auf existierende Benchmarks und Webanwendungen zurückgegriffen werden muss. 
+Um Webserver und Server Load Balancer zu testen werden verschiedenste Benchmarks verwendet. Oft nutzen diese Benchmarks synthetisch erzeugte Requests, im Falle von Webservern auch synthetische Websites. Dies hat den Nachteil, dass kein realistisches Nutzerverhalten simuliert werden kann. Somit fehlt die Verbindung zu realistischen Lastsituationen. Zum Testen von existierenden Webservern können realistische, aufgezeichnete Traces genutzt und modifiziert werden, um realistischere Lasttests zu generieren. Für das Testen von Server Load Balancer bleibt weiterhin das Problem, dass auf existierende Benchmarks und Webanwendungen zurückgegriffen werden muss. 
 
 Am Lehrstuhl Betriebssysteme und Verteilte Systeme von Frau Prof. Dr. Schnor
 %, am Institut für Informatik der Universität Potsdam, 
-schreibt M.Sc. Jörg Zinke seine Doktorarbeit zum Thema Server Load Balancing. Um die entwickelten Algorithmen anhand eines realistischen Benchmarks bzw. einer realistischen Webanwendung zu testen, soll die englische Wikipedia simuliert werden. Zum Testen stehen außerdem reale Webserver-Traces der Wikipedia zur Verfügung.
+schreibt M.Sc. Jörg Zinke seine Doktorarbeit zum Thema Server Load Balancing. Um die entwickelten Algorithmen anhand eines realistischen Benchmarks bzw. einer realistischen Webanwendung zu testen, soll die englische Wikipedia\footnote{\url{http://en.wikipedia.org/}} simuliert werden. Zum Testen stehen außerdem reale Webserver-Traces der Wikipedia zur Verfügung.
 
-Als nächstes wird die Aufgabenstellung beschrieben. In Abschnitt \ref{sec:grundlagen} werden die nötigen Grundlagen für die Lösung der Aufgabe diskutiert und erläutert. Daraus ergibt sich das Konzept, welches in Abschnitt \ref{sec:konzept} vorgestellt wird. Dessen Implementation wird in Abschnitt \ref{sec:implementierung} erläutert. Die in Abschnitt \ref{sec:beispiel} präsentierten Daten, sollen die Zusammensetzung der Traces und die Wichtigkeit der Bild-Dateien, für das erfolgreiche Einspielen von Traces, verdeutlichen. Abschließend wird in Abschnitt \ref{sec:zusammenfassung} das Ergebnis dieser Arbeit zusammengefasst und in Abschnitt \ref{sec:ausblick} ein Ausblick auf die Weiterentwicklung der hier vorgestellten Lösung präsentiert.
+Als nächstes wird die Aufgabenstellung beschrieben. In Abschnitt \ref{sec:grundlagen} werden die nötigen Grundlagen für die Lösung der Aufgabe erläutert. Daraus ergibt sich das Konzept, welches in Abschnitt \ref{sec:konzept} vorgestellt wird. Dessen Implementierung wird in Abschnitt \ref{sec:implementierung} erläutert. Die in Abschnitt \ref{sec:beispiel} präsentierten Daten, sollen die Zusammensetzung der Traces und die Wichtigkeit der Bild-Dateien für das erfolgreiche Einspielen von Traces verdeutlichen. Abschließend wird in Abschnitt \ref{sec:zusammenfassung} das Ergebnis dieser Arbeit zusammengefasst und in Abschnitt \ref{sec:ausblick} ein Ausblick auf mögliche Weiterentwicklungen gegeben.
 
 \subsection{Aufgabenstellung}
 \label{sec:aufgabestellung}
 
-Ziel dieses Praktikums war es, eine Anwendung bzw. ein Skript zu entwickeln, welches es ermöglicht ein Webserver-Cluster mit einer Wikipedia-Umgebung einzurichten. Dazu wird ein gegebener Wikipedia-Dump genutzt und ein bestimmter Teil eines Wikipedia-Traces. Nach dem Einrichten sollen alle Server, die Artikel der englischen Wikipedia (entsprechende des Dumps) anbieten. Hinzu kommen die im benutzten Trace-Abschnitt verwendeten Bilddateien. Anschließend soll bei einem Wiedereinspielen des Trace-Abschnitts der Anteil der nicht gefundenen Ressourcen minimal sein. Daher ergeben sich folgende Unteraufgaben:
+Ziel dieses Praktikums ist es, eine Anwendung bzw. ein Skript zu entwickeln, welches es ermöglicht, ein Webserver-Cluster mit einer Wikipedia-Umgebung einzurichten. Dazu wird ein gegebener Wikipedia-Dump genutzt und ein bestimmter Teil eines Wikipedia-Traces. Nach dem Einrichten sollen alle Server, die Artikel der englischen Wikipedia, auf dem Stand des eingespielten Dumps, anbieten. Hinzu kommen die im benutzten Trace-Abschnitt verwendeten Bilddateien. Anschließend soll bei einem Wiedereinspielen des Trace-Abschnitts der Anteil der nicht gefundenen Ressourcen minimal sein. Daher ergeben sich folgende Unteraufgaben:
 \begin{enumerate}
 \item Filtern des Traces
 \item Ermitteln und Bereitstellen der benötigten Ressourcen
@@ -22,4 +22,7 @@ Ziel dieses Praktikums war es, eine Anwendung bzw. ein Skript zu entwickeln, wel
 %%% Local Variables: 
 %%% mode: latex
 %%% TeX-master: "../master"
-%%% End: 
+%%% End:
+% LocalWords:  Load Balancer Requests Nutzerverhalten Lastsituationen Traces Dr
+% LocalWords:  Lasttests Webanwendungen Prof Schnor Sc Balancing bzw Dump Dumps
+% LocalWords:  Webanwendung Trace Bilddateien Wiedereinspielen Unteraufgaben
