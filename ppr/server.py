@@ -21,30 +21,37 @@ import re
 
 
 def execute(cmd, pipe=True):
+    """
+    Executes a command by subprocess module. Optional process output.
+
+    cmd     : command to execute
+    pipe    : trigger return of process output
+    """
     args = shlex.split(cmd)
     if pipe:
-        p = subprocess.Popen(args, stdout=subprocess.PIPE,
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE)
-        output = p.communicate()
-        return p.returncode, output
+        output = proc.communicate()
+        return proc.returncode, output
     else:
-        p = subprocess.Popen(args)
-        p.wait()
-        return p.returncode
+        proc = subprocess.Popen(args)
+        proc.wait()
+        return proc.returncode
 
 
 def stop_service(log, service):
+    """Stop a given service on the local system."""
     log.info("Check status of %s service", service)
     cmd = "service %s status" % service
-    rc, output = execute(cmd)
-    if rc == 1:
+    result, output = execute(cmd)
+    if result == 1:
         log.error("Unknown service %s", service)
         sys.exit(2)
     if re.compile(r'|'.join(["start", "process", "PID"])).search(output[0]):
         log.info("Stop %s service", service)
         cmd = "service %s stop" % service
-        rc, output = execute(cmd)
-        if rc != 0:
+        result, output = execute(cmd)
+        if result != 0:
             log.error("Unable to stop %s service", service)
             sys.exit(2)
         log.info("Service %s stopped", service)
@@ -53,22 +60,35 @@ def stop_service(log, service):
 
 
 def start_service(log, service):
+    """Start a given service on the local system."""
     cmd = "service %s status" % service
-    rc, output = execute(cmd)
+    result, output = execute(cmd)
     if re.compile(r'|'.join(["start", "process", "PID"])).search(output[0]):
         log.info("Service %s already started", service)
         return
 
     log.info("Start %s service", service)
     cmd = "service %s start" % service
-    rc, output = execute(cmd)
-    if rc != 0:
+    result, output = execute(cmd)
+    if result != 0:
         log.error("Unable to start service %s", service)
         sys.exit(2)
     log.info("Service %s successful started", service)
 
 
 def scp_files(host, user, files, exe, log, directory="~/"):
+    """
+    Copy a list of files to a given host address (by scp) and execute
+    all given commands (by ssh).
+
+    host        : hostname
+    user        : username on host
+    files       : list of files to copy
+    exe         : list of commands to execute
+    log         : logger instance
+    directory   : directory to copy data on host system
+    """
+
     params = dict()
     params["files"] = " ".join(files)
     params["user"] = user
@@ -77,8 +97,8 @@ def scp_files(host, user, files, exe, log, directory="~/"):
     cmd = "scp %(files)s %(user)s@%(host)s:%(dir)s" % params
     log.info("Copy files to %s", host)
     log.debug("cmd: %s", cmd)
-    rc = execute(cmd, pipe=False)
-    if rc != 0:
+    result = execute(cmd, pipe=False)
+    if result != 0:
         log.error("Unable to copy files")
     else:
         log.info("Successful copied files to %s", host)
@@ -90,33 +110,34 @@ def scp_files(host, user, files, exe, log, directory="~/"):
             params["cmd"] = cmd
             cmd = "ssh %(user)s@%(host)s %(cmd)s" % params
             log.debug("cmd: %s", cmd)
-            rc = execute(cmd, pipe=False)
-            if rc != 0:
+            result = execute(cmd, pipe=False)
+            if result != 0:
                 log.error("Unable to execute '%s'", cmd)
             else:
                 log.info("Successful executed command on %s", host)
 
 
 def main():
+    """Unpacks given mediawiki and mysql packages."""
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hm:a:d:w:q:",
                 ["httpd=", "mysqld=", "archive=", "db=", "wiki=", "mysql=",
                 "help"])
 
-        for o, a in opts:
-            if o in ["-h", "--help"]:
+        for opt, value in opts:
+            if opt in ["-h", "--help"]:
                 print __doc__
                 sys.exit(0)
-            if o in ["-m", "--mysqld"]:
-                mysqld = a
-            if o in ["-a", "--archive"]:
-                archive = a
-            if o in ["-d", "--db"]:
-                db = a
-            if o in ["-w", "--wiki"]:
-                wiki = a
-            if o in ["-q", "--mysql"]:
-                mysql = a
+            if opt in ["-m", "--mysqld"]:
+                mysqld = value
+            if opt in ["-a", "--archive"]:
+                archive = value
+            if opt in ["-d", "--database"]:
+                database = value
+            if opt in ["-w", "--wiki"]:
+                wiki = value
+            if opt in ["-q", "--mysql"]:
+                mysql = value
 
         log = logging.getLogger()
         formatter = logging.Formatter(
@@ -149,8 +170,8 @@ def main():
         if mysql != "None":
             stop_service(log, mysqld)
 
-            log.info("Unpack mysql database '%s' to '%s'", db, mysql)
-            tar = tarfile.open(db)
+            log.info("Unpack mysql database '%s' to '%s'", database, mysql)
+            tar = tarfile.open(database)
             tar.extractall(path=mysql)
             tar.close()
 
@@ -158,8 +179,8 @@ def main():
 
         sys.exit(0)
 
-    except getopt.GetoptError, e:
-        print >> sys.stderr, e
+    except getopt.GetoptError, err:
+        print >> sys.stderr, err
         print __doc__
         sys.exit(1)
 

@@ -23,6 +23,7 @@ from ppr.server import execute, stop_service, start_service
 
 
 def print_error(msg, hint=""):
+    """Print error message and exit."""
     print >> sys.stderr, "ERROR:", msg
     if hint:
         print >> sys.stderr, hint
@@ -30,6 +31,7 @@ def print_error(msg, hint=""):
 
 
 def get_config(config, config_func, section, option, hint="", default=None):
+    """Return a value from configuration file."""
     if config.has_option(section, option):
         return config_func(section, option)
     else:
@@ -41,42 +43,48 @@ def get_config(config, config_func, section, option, hint="", default=None):
 
 
 def get_config_str(config, section, option, hint="", default=None):
+    """Return a string from configuration file."""
     return get_config(config, config.get, section, option, hint,
             default)
 
 
 def get_config_bool(config, section, option, hint="", default=None):
+    """Return a boolean from configuration file."""
     return get_config(config, config.getboolean, section, option, hint,
             default)
 
 
 def get_config_int(config, section, option, hint="", default=None):
+    """Return a integer from configuration file."""
     return get_config(config, config.getint, section, option, hint,
             default)
 
 
 def get_config_path(config, section, option, hint="", default=None):
+    """Return a path from configuration file."""
     return os.path.realpath(get_config(config, config.get, section, option,
         hint, default))
 
 
-def split_server(s):
-    if not s:
+def split_server(server):
+    """Split server configuration string."""
+    if not server:
         return dict()
     try:
         result = dict()
-        for c in s.split(":"):
-            (config, ips) = c.split("@")
+        for cfg in server.split(":"):
+            (config, ips) = cfg.split("@")
             result[config] = ips.split(",")
         return result
     except:
         print_error("Unable to parse 'server' option in 'download' section")
 
 
-def read_config(config_filename):
+def read_config(filename):
+    """Read configuration file."""
     config = dict()
     config_file = ConfigParser.SafeConfigParser()
-    config_file.read([config_filename])
+    config_file.read([filename])
 
     # general
     config["analyse"] = get_config_bool(config_file, "general", "analyse",
@@ -106,14 +114,14 @@ def read_config(config_filename):
 
     if config["filter"] or config["download"]:
         # filter
-        a, b = get_config_str(config_file, "filter", "interval",
+        start, end = get_config_str(config_file, "filter", "interval",
                 "Time interval to filter trace (timestamp:timestamp or "
                 "timestamp:seconds)").split(":")
-        a = float(a)
-        b = float(b)
-        if a >= b:
-            b += a
-        config["filter_interval"] = (a, b)
+        start = float(start)
+        end = float(end)
+        if start >= end:
+            end += start
+        config["filter_interval"] = (start, end)
 
         config["filter_host"] = get_config_str(config_file, "filter", "host",
                 "Host address for rewrite trace (name or IP)")
@@ -191,34 +199,37 @@ def read_config(config_filename):
 
 
 def pack_db(log, script, output_dir, mysql_dir, mysql_pack, service):
-        cmd = " ".join(["php", script, "--missing"])
-        rc, output = execute(cmd)
-        if output[0]:
-            log.debug("\n%s", output[0])
-        if output[1]:
-            log.error("\n%s", output[1])
+    """Pack MySQL database to tar file."""
+    cmd = " ".join(["php", script, "--missing"])
+    result, output = execute(cmd)
+    if output[0]:
+        log.debug("\n%s", output[0])
+    if output[1]:
+        log.error("\n%s", output[1])
 
-        if not os.path.isdir(output_dir):
-            log.info("Create output directory %s", output_dir)
-            os.makedirs(output_dir)
+    if not os.path.isdir(output_dir):
+        log.info("Create output directory %s", output_dir)
+        os.makedirs(output_dir)
 
-        log.info("Pack mysql db to %s", mysql_pack)
-        stop_service(log, service)
-        tar = tarfile.open(mysql_pack, "w")
-        for f in os.listdir(mysql_dir):
-            tar.add(os.path.join(mysql_dir, f), arcname=f)
-        tar.close()
-        start_service(log, service)
+    log.info("Pack mysql db to %s", mysql_pack)
+    stop_service(log, service)
+    tar = tarfile.open(mysql_pack, "w")
+    for filename in os.listdir(mysql_dir):
+        tar.add(os.path.join(mysql_dir, filename), arcname=filename)
+    tar.close()
+    start_service(log, service)
 
 
 def pack_mediawiki(wiki_pack, wiki_dir):
+    """Pack mediawiki to tar file."""
     tar = tarfile.open(wiki_pack, "w")
-    for f in os.listdir(wiki_dir):
-        tar.add(os.path.join(wiki_dir, f), arcname=f)
+    for filename in os.listdir(wiki_dir):
+        tar.add(os.path.join(wiki_dir, filename), arcname=filename)
     tar.close()
 
 
 def main(config):
+    """Setup wikipedia enviroment and sync it."""
 
     log = multiprocessing.get_logger()
 
@@ -243,7 +254,6 @@ def main(config):
     if config["download"]:
         filterfile = WikiFilter.get_filterfile(trace_file,
                 config["filter_interval"])
-        (path, ext) = os.path.splitext(filterfile)
         imagefile = WikiAnalyser.get_special_file(filterfile, "image")
         thumbfile = WikiAnalyser.get_special_file(filterfile, "thumb")
         wiki_images = config["download_wiki_images"]
@@ -283,11 +293,11 @@ def main(config):
         reader_pipes.append(analyser.pipe)
 
     if config["filter"]:
-        filter = WikiFilter(trace_file, config["filter_host"],
+        wfilter = WikiFilter(trace_file, config["filter_host"],
                 config["filter_interval"], config["filter_regex"],
                 True, config["filter_openfunc"], config["plot"])
-        filter.start()
-        reader_pipes.append(filter.pipe)
+        wfilter.start()
+        reader_pipes.append(wfilter.pipe)
 
     if reader_pipes:
         reader = FileReader(trace_file, config["trace_openfunc"],
@@ -298,7 +308,7 @@ def main(config):
     if config["analyse"]:
         analyser.join()
     if config["filter"]:
-        filter.join()
+        wfilter.join()
 
     # download
     if config["download"]:
@@ -371,23 +381,21 @@ def main(config):
 
         for cfg in server:
             for host in server[cfg]:
-                s = SyncClient(host, sconfig[cfg], wiki_pack, mysql_pack,
+                sclient = SyncClient(host, sconfig[cfg], wiki_pack, mysql_pack,
                         script)
-                s.start()
-                sync.append(s)
+                sclient.start()
+                sync.append(sclient)
 
-        for s in sync:
-            s.join()
+        for sclient in sync:
+            sclient.join()
 
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print_error("Need one config file", __doc__)
 
-    config_filename = sys.argv[1]
-
-    if not os.path.isfile(config_filename):
+    if not os.path.isfile(sys.argv[1]):
         print_error("Unable to find config file", __doc__)
 
-    main(read_config(config_filename))
+    main(read_config(sys.argv[1]))
     sys.exit(0)

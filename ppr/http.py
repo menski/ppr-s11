@@ -13,11 +13,10 @@ import time
 import os
 import urllib
 import multiprocessing
-import os.path
 
 
 class HTTPAsyncClient(asynchat.async_chat):
-    """docstring for HTTPAsyncClient"""
+    """Client to send HTTP1.1 requests."""
 
     TERMINATOR = "\r\n\r\n"
     HTTP_COMMAND = "GET %s HTTP/1.1\r\nHost: %s\r\n\r\n"
@@ -29,12 +28,33 @@ class HTTPAsyncClient(asynchat.async_chat):
             r'^Content-Length:[ ]*([0-9]+).*$', re.MULTILINE)
 
     def __init__(self, host, pipe, port=80, channels=None):
+        """
+        Create a new client.
+
+        host        : host to connect
+        pipe        : pipe of paths
+        port        : port to connect
+        channels    : map of file descriptors 
+
+        """
         asynchat.async_chat.__init__(self, map=channels)
         self._log = multiprocessing.get_logger()
         self._host = host
         self._pipe = pipe
         self._port = port
         self._time = 0
+        self._htime = 0
+        self._path = ""
+        self._header = ""
+        self._body = ""
+        self._data = ""
+        self._protocol = ""
+        self._status = -1
+        self._status_msg = ""
+        self._close = False
+        self._chunked = True
+        self._content_length = -1
+
         self.set_terminator(HTTPAsyncClient.TERMINATOR)
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connect((self._host, self._port))
@@ -43,12 +63,15 @@ class HTTPAsyncClient(asynchat.async_chat):
         self.send_request()
 
     def logmsg(self, msg, *args):
+        """Returns a log message with the filedescriptor id."""
         return "[FD: %3d] %s" % (self.fileno(), msg % args)
 
     def get_request(self):
+        """Returns a valid HTTP1.1 request command."""
         return HTTPAsyncClient.HTTP_COMMAND % (self._path, self._host)
 
     def send_request(self):
+        """Sends a new request, if more paths are available."""
         self._path = ""
         self._header = ""
         self._body = ""
@@ -76,16 +99,18 @@ class HTTPAsyncClient(asynchat.async_chat):
             self.close()
 
     def collect_incoming_data(self, data):
+        """Collects the received data."""
         self._data += data
         if not self._chunked and len(self._data) >= self._content_length:
             self.found_terminator()
 
     def found_terminator(self):
+        """Handles terminator appearance."""
         if not self._header:
             self._htime = time.time() - self._time
             self._header = self._data
             self._data = ""
-            self.analyze_header()
+            self.analyse_header()
 
             if self._content_length == 0:
                 self.found_terminator()
@@ -99,7 +124,8 @@ class HTTPAsyncClient(asynchat.async_chat):
             else:
                 self.send_request()
 
-    def analyze_header(self):
+    def analyse_header(self):
+        """Analyse the response header."""
         self._protocol, self._status, self._status_msg = self._header.split(
                 "\r\n")[0].split(" ", 2)
         self._status = int(self._status)
@@ -112,28 +138,30 @@ class HTTPAsyncClient(asynchat.async_chat):
             self._status, self._status_msg, self._close, self._chunked,
             self._content_length, self._htime, self._path))
 
-    def get_status(self):
-        return -1
-
     def get_close(self):
-        m = HTTPAsyncClient.PATTERN_CONNECTION_CLOSE.search(self._header)
-        return m is not None
+        """Checks if the response header require the connection to close."""
+        match = HTTPAsyncClient.PATTERN_CONNECTION_CLOSE.search(self._header)
+        return match is not None
 
     def get_chunked(self):
-        m = HTTPAsyncClient.PATTERN_TRANSFER_ENCODING.search(self._header)
-        return m is not None
+        """Checks if the response header contains chunked encoding flag."""
+        match = HTTPAsyncClient.PATTERN_TRANSFER_ENCODING.search(self._header)
+        return match is not None
 
     def get_content_length(self):
-        m = HTTPAsyncClient.PATTERN_CONTENT_LENGTH.search(self._header)
-        if m is not None:
-            return int(m.group(1))
+        """Reads the content length from the response header."""
+        match = HTTPAsyncClient.PATTERN_CONTENT_LENGTH.search(self._header)
+        if match is not None:
+            return int(match.group(1))
         else:
             return -1
 
     def get_path(self):
+        """Return last requested path."""
         return self._path
 
     def process_response(self):
+        """Process response body."""
         self._log.debug(self.logmsg(
             "Response received (Protocol: %s, Status: %d %s, Length: %d, "
             "Time: %f) %s", self._protocol, self._status, self._status_msg,
@@ -141,9 +169,23 @@ class HTTPAsyncClient(asynchat.async_chat):
 
 
 class HTTPCrawler(PipeReader):
-    """docstring for HTTPCrawler"""
+    """
+    HTTP crawler that uses HTTPAsyncClient instances for asynchronous
+    HTTP requests.
+
+    """
 
     def __init__(self, host, port=80, async=100, retry=7, timeout=None):
+        """
+        Create a new crawler.
+
+        host        : host to connect
+        port        : port to connect
+        async       : amount of asychronous connections
+        retry       : number of connection attempts
+        timeout     : timeout for pipe consumption
+
+        """
         PipeReader.__init__(self, timeout)
         self._host = host
         self._port = port
@@ -156,10 +198,12 @@ class HTTPCrawler(PipeReader):
                 self._host, self._port, self._async)
 
     def create_client(self):
+        """Return a new client."""
         return HTTPAsyncClient(self._host, self._pipe, self._port,
                 self._channels)
 
     def postprocess(self):
+        """Check all clients after all connections are closed."""
         for client in self._clients:
             path = client.get_path()
             if path is None:
@@ -167,29 +211,31 @@ class HTTPCrawler(PipeReader):
                 self._log.debug("Done message found")
                 break
             elif path:
-                    self.pipe.send(path)
+                self.pipe.send(path)
 
     def test_connection(self):
+        """Attempt to connect to server on given port."""
         while self._retry > 0:
             self._retry -= 1
             try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.connect((self._host, self._port))
-            except socket.gaierror, e:
-                self._log.error(e)
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.connect((self._host, self._port))
+            except socket.gaierror, err:
+                self._log.error(err)
                 return False
-            except socket.error, e:
-                self._log.error(e)
-            except Exception, e:
-                self._log.error(e)
+            except socket.error, err:
+                self._log.error(err)
+            except Exception, err:
+                self._log.error(err)
                 return False
             else:
                 return True
             finally:
-                s.close()
+                sock.close()
         return False
 
     def run(self):
+        """Process run method."""
         if self.test_connection():
             while not self._done:
                 while self._pipe.poll(self._timeout):
@@ -213,13 +259,25 @@ class HTTPCrawler(PipeReader):
 
 
 class FileClient(HTTPAsyncClient):
+    """Client to send HTTP1.1 requests and save the response a file."""
 
     def __init__(self, host, pipe, directory, port=80, channels=None):
+        """
+        Create a new client.
+
+        host        : host to connect
+        pipe        : pipe of paths
+        directory   : directory to save reponse files
+        port        : port to connect
+        channels    : map of file descriptors 
+
+        """
         HTTPAsyncClient.__init__(self, host, pipe, port, channels)
         self._dir = directory
         self.error = set()
 
     def process_response(self):
+        """Process response body."""
         HTTPAsyncClient.process_response(self)
         if self._status == 200:
             file_path = re.sub(r'^/[\w-]+/[\w-]+/', '/', self._path)
@@ -235,30 +293,49 @@ class FileClient(HTTPAsyncClient):
                     output.write(self._data)
                 self._log.debug(self.logmsg("Write %s to %s", self._path,
                     file_path))
-            except Exception, e:
-                self._log.error(self.logmsg(e))
+            except Exception, err:
+                self._log.error(self.logmsg(err))
         else:
             self.error.add(self._host + self._path)
 
 
 class FileCrawler(HTTPCrawler):
+    """
+    HTTP crawler that uses FileClient instances for asynchronous
+    HTTP requests and saves the requests to a given directory.
+
+    """
 
     def __init__(self, host, directory, port=80, async=25, retry=7,
             timeout=None):
+        """
+        Create a new crawler.
+
+        host        : host to connect
+        directory   : directory to save response files
+        port        : port to connect
+        async       : amount of asychronous connections
+        retry       : number of connection attempts
+        timeout     : timeout for pipe consumption
+
+        """
         HTTPCrawler.__init__(self, host, port, async, retry, timeout)
         self._dir = os.path.abspath(directory)
         self._error = set()
 
     def create_client(self):
+        """Return a new client."""
         return FileClient(self._host, self._pipe, self._dir, self._port,
                 self._channels)
 
     def postprocess(self):
+        """Check all clients after all connections are closed."""
         for client in self._clients:
             self._error.update(client.error)
         HTTPCrawler.postprocess(self)
 
     def run(self):
+        """Process run method."""
         HTTPCrawler.run(self)
         if self._error:
             self._log.info("Unable to find files:\n%s", "\n".join(self._error))

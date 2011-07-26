@@ -23,9 +23,9 @@ def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
     """Use gnuplot to plot given data. Optional save plot in a file."""
     with open("%s.log" % filename, "w") as output:
         # create process
-        gnuplot = subprocess.Popen(["gnuplot", "-"], stdout=output,
+        gplot = subprocess.Popen(["gnuplot", "-"], stdout=output,
                 stderr=output, stdin=subprocess.PIPE)
-        stdin = gnuplot.stdin
+        stdin = gplot.stdin
 
         # set title
         stdin.write('set title "%s"\n' % title)
@@ -66,7 +66,7 @@ def gnuplot(title, data, filename, ylabel=None, xlabel=None, using=None,
 
         # quit process
         stdin.write("quit\n")
-        return gnuplot.wait()
+        return gplot.wait()
 
 
 class TraceAnalyser(PipeReader):
@@ -110,6 +110,15 @@ class WikiAnalyser(TraceAnalyser):
     """Analyse a wiki trace from wikibench.eu"""
 
     def __init__(self, filename, openfunc=open, plot=True, timeout=None):
+        """
+        Create a new analyser.
+
+        filename    : file to analyse
+        openfunc    : function to open file
+        plot        : plot requests per seconds
+        timeout     : pipe poll timeout
+
+        """
         TraceAnalyser.__init__(self, filename, plot, timeout)
         self._openfunc = openfunc
 
@@ -137,16 +146,17 @@ class WikiAnalyser(TraceAnalyser):
             dictonary[key] = 1
 
     def print_dict(self, dictonary, output):
+        """Print a dictonary to output."""
         sformat = "%30s: %8d\n"
-        sum = 0
+        total = 0
         count = 0
         for key, value in sorted(dictonary.items(), key=itemgetter(1),
             reverse=True):
-            sum += value
+            total += value
             count += 1
             output.write(sformat % (key, value))
         output.write("%40s\n" % "----------")
-        output.write(sformat % ("sum", sum))
+        output.write(sformat % ("total", total))
         output.write(sformat % ("count", count))
 
     def consume(self, line):
@@ -155,12 +165,13 @@ class WikiAnalyser(TraceAnalyser):
 
         # split line
         try:
-            (nr, timestamp, url, method) = line.split(" ")
+            (nbr, timestamp, url, method) = line.split(" ")
             split = urlparse.urlsplit(url)
             host = split.hostname
             path = split.path
-        except Exception, e:
-            self._log.critical("ERROR: Unable to parse line %s (%s)", line, e)
+        except Exception, err:
+            self._log.critical("ERROR: Unable to parse line %s (%s)", line,
+                    err)
             sys.exit(3)
         timestamp = float(timestamp)
 
@@ -258,10 +269,12 @@ class WikiAnalyser(TraceAnalyser):
 
     @staticmethod
     def get_special_file(filename, special):
+        """Return filename of a special file."""
         (path, ext) = os.path.splitext(filename)
         return ("." + special).join([path, ext])
 
     def run(self):
+        """Process run method."""
         pagefile = WikiAnalyser.get_special_file(self._filename, "page")
         imagefile = WikiAnalyser.get_special_file(self._filename, "image")
         thumbfile = WikiAnalyser.get_special_file(self._filename, "thumb")
@@ -297,6 +310,15 @@ class TraceFilter(PipeReader):
     """A filter for traces."""
 
     def __init__(self, filename, regex, analyse=False, timeout=None):
+        """
+        Create a new filter.
+
+        filename    : filename to filter
+        regex       : filter regex for urls
+        analyse     : trigger analyse of fitlered trace
+        timeout     : pipe poll timeout
+
+        """
         PipeReader.__init__(self, timeout)
         self._filename = filename
         self._regex = re.compile(regex)
@@ -328,6 +350,19 @@ class WikiFilter(TraceFilter):
 
     def __init__(self, filename, host, interval, regex=None, analyse=False,
             openfunc=open, plot=False, timeout=None):
+        """
+        Create a new filter.
+
+        filename    : filename to filter
+        host        : host for rewrite trace
+        interval    : time interval to filter
+        regex       : filter regex for urls
+        analyse     : trigger analyse of fitlered trace
+        openfunc    : function to open files to write
+        plot        : trigger creation of a request per seconds plot
+        timeout     : pipe poll timeout
+
+        """
         self._host = "http://" + host
         self._interval = interval
         self._filterfile = WikiFilter.get_filterfile(filename, interval)
@@ -340,17 +375,19 @@ class WikiFilter(TraceFilter):
 
     @staticmethod
     def get_filterfile(filename, interval):
+        """Return filename for filtered trace."""
         (path, ext) = os.path.splitext(filename)
         return "%s.%d-%d%s" % (path, interval[0], interval[1], ext)
 
     @staticmethod
     def get_rewritefile(filename, interval):
+        """Return filename for rewritten filtered trace."""
         (path, ext) = os.path.splitext(filename)
         return "%s.%d-%d.rewrite%s" % (path, interval[0], interval[1], ext)
 
     def consume(self, line):
         """Filter line from tracefile."""
-        (nr, timestamp, url, method) = line.split(" ")
+        (nbr, timestamp, url, method) = line.split(" ")
         timestamp = float(timestamp)
         if (timestamp >= self._interval[0] and
             timestamp < self._interval[1] + 1 and
@@ -359,7 +396,7 @@ class WikiFilter(TraceFilter):
 
     def process(self, line):
         """Process filter line from tracefile."""
-        (nr, timestamp, url, method) = line.split(" ")
+        (nbr, timestamp, url, method) = line.split(" ")
 
         # accept only gets
         if method != "-":
@@ -377,11 +414,12 @@ class WikiFilter(TraceFilter):
         url = re.sub("^http://upload.wikimedia.org/wikipedia/[a-z]+/",
                 self._host + "/w/images/", url)
 
-        line = " ".join([nr, timestamp, url, method])
+        line = " ".join([nbr, timestamp, url, method])
 
         self._rewrite.send(line)
 
     def run(self):
+        """Process run method."""
         filterfw = FileWriter(self._filterfile, openfunc=self._openfunc,
                 timeout=self._timeout)
         self._filter = filterfw.pipe
@@ -409,7 +447,7 @@ class WikiFilter(TraceFilter):
         if self._analyse:
             self._analyser.send(None)
             self._analyser.close()
-            self._log.debug("Send done message to filterd Analyser")
+            self._log.debug("Send done message to filtered Analyser")
             analyser.join()
 
         filterfw.join()
@@ -417,16 +455,28 @@ class WikiFilter(TraceFilter):
 
 
 class FileCollector(PipeReader):
-    """docstring for FileCollector"""
+    """A collector to download files by HTTP requests and save them."""
 
     def __init__(self, download_dir, copy_dir, regex=None, port=80, async=25,
             retry=7, timeout=None):
+        """
+        Create a new collector.
+
+        download_dir    : directory to save respone files
+        copy_dir        : directory to copy files
+        regex           : regex to filter urls
+        port            : port to connect
+        async           : amount of asychronous connections
+        retry           : number of connection attempts
+        timeout         : timeout for pipe consumption
+
+        """
         PipeReader.__init__(self, timeout)
         self._download_dir = os.path.abspath(download_dir)
         self._copy_dir = os.path.abspath(copy_dir)
         self._downloads = []
         if regex is None:
-            regex = WikiAnalyser.DEFAULT_REGEX
+            regex = WikiFilter.DEFAULT_REGEX
         self._regex = regex
         self._port = port
         self._async = async
@@ -434,10 +484,12 @@ class FileCollector(PipeReader):
         self._crawler = dict()
 
     def get_filename(self, url):
+        """Return local filename for a given url."""
         path = re.sub(self._regex, "", url)
         return os.path.join(self._download_dir, path)
 
     def copy_file(self, filename):
+        """Copy file on the local system."""
         try:
             target = filename.replace(self._download_dir, self._copy_dir)
             dirname = os.path.dirname(target)
@@ -446,10 +498,11 @@ class FileCollector(PipeReader):
                 self._log.debug("Create directory %s", dirname)
             shutil.copy(filename, target)
             self._log.debug("Copy file %s to %s", filename, target)
-        except Exception, e:
-            self._log.error("Unable to copy file %s (%s)", filename, e)
+        except Exception, err:
+            self._log.error("Unable to copy file %s (%s)", filename, err)
 
     def consume(self, url):
+        """Process a given url."""
         filename = self.get_filename(urllib.unquote(url))
         if os.path.isfile(filename):
             self._log.debug("File %s already exists at %s", url, filename)
@@ -468,6 +521,7 @@ class FileCollector(PipeReader):
             self._downloads.append(filename)
 
     def run(self):
+        """Process run method."""
         PipeReader.run(self)
         for crawler in self._crawler.values():
             crawler.pipe.send(None)
