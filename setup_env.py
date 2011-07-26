@@ -329,6 +329,13 @@ def main(config):
         image_collector.join()
         thumb_collector.join()
 
+        log.info("Chmod 777 images dir '%s'", wiki_images)
+        result = execute("chmod -R 777 %s" % wiki_images, pipe=False)
+        if result == 0:
+            log.info("Successful setup mediawiki")
+        else:
+            log.error("Unable to chmod 777 %s", wiki_images)
+
         service = config["download_mysqld"]
 
         if config["download_clean_mysql"]:
