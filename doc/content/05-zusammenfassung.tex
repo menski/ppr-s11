@@ -1,0 +1,17 @@
+\section{Zusammenfassung}
+\label{sec:zusammenfassung}
+
+Das in dieser Arbeit vorgestellt Skript ermöglicht es eine lokale Installation der Wikipedia mit Bildern anzureichern. Außerdem kann die lokale Installation anschließend auf weitere Server übertragen und dort eingerichtet werden. Damit ist die in Abschnitt \ref{sec:aufgabestellung} beschriebene Aufgabenstellung erfüllt. Das Skript ermöglicht durch die Parallelisierung anhand von Prozessen, eine optimale Auslastung der zu Verfügung stehenden Rechenleistung. Außerdem ist das Skript durch die parallel Abarbeitung sehr Speicher schonend, was sich besonders bei großen Traces auszahlt. Trotzdem ist die Ausführung des Skripts mit allen Schritten immer noch sehr zeitintensiv. Was an den großen Datenmengen liegt, welche verarbeitet, kopiert und verschoben werden müssen. 
+
+Zur Stabilität des Skriptes kann keine klare Aussage getroffen werden. Aufgrund einer sehr kurzen Entwicklungszeit und mehrerer Hardwaredefekte konnte es kaum auf dem Produktiv-System getestet werden. Allerdings konnten mit Hilfe des Skriptes 4 Server, für ein 30 minütigen Trace-Ausschnitt, erfolgreich eingerichtet werden. Es liegen jedoch keine Messungen vor, wie hoch der aktuelle Anteil von nicht erreichbaren Ressourcen ist.
+
+\section{Ausblick}
+\label{sec:ausblick}
+
+Wie bereits in der Zusammenfassung (siehe Abschnitt \ref{sec:zusammenfassung}) erwähnt, konnte das Skript kaum getestet werden. Hier bedarf es weitere Praxis-Tests und gegebenenfalls Fehlerbeseitigung. Die Phasen während des Downloads und der Installation auf den Servern, benötigt am meisten Zeit und Ressourcen. Diese Phasen könnten Möglicherweise optimiert oder anders konzipiert werden. Außerdem wäre es möglich nach dem Download der Bilder, den gefilterten Trace ein weiteres mal zu filtern und die nicht verfügbaren Bilder und Thumbnails zu entfernen.
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "../master"
+%%% End: 
